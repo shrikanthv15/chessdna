@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { AlertTriangle, ArrowLeft, Dna, RotateCcw } from "lucide-react";
+import { AlertTriangle, ArrowLeft, BookOpen, Dna, RotateCcw } from "lucide-react";
 import BlindSpotBars from "@/components/BlindSpotBars";
 import BlunderBoard from "@/components/BlunderBoard";
 import CoachPanel from "@/components/CoachPanel";
@@ -9,7 +9,9 @@ import KpiCards from "@/components/KpiCards";
 import PhaseOpenings from "@/components/PhaseOpenings";
 import PracticeSection from "@/components/PracticeSection";
 import ProgressView from "@/components/ProgressView";
+import Recommendations from "@/components/Recommendations";
 import SearchForm, { type SearchValues } from "@/components/SearchForm";
+import ThemeToggle from "@/components/ThemeToggle";
 import { getJobStatus, startAnalysis } from "@/lib/api";
 import {
   formatPct,
@@ -19,6 +21,7 @@ import {
   timeControlDisplay,
   topClassifiedSpot,
 } from "@/lib/format";
+import { TRAINER_URL } from "@/lib/trainer";
 import type {
   CoachSettings,
   JobProgress,
@@ -167,7 +170,28 @@ export default function Home() {
   }
 
   return (
-    <main className="min-h-screen bg-[#0a0a0b] text-zinc-100">
+    <main className="min-h-screen bg-[#faf7f0] text-stone-900 dark:bg-[#0a0a0b] dark:text-zinc-100">
+      {/* Slim top bar: brand (when not on the hero) + theme toggle. */}
+      <div className="mx-auto flex w-full max-w-[1400px] items-center justify-between px-3 pt-4 sm:px-4">
+        <span className="flex items-center gap-1.5 text-sm font-bold tracking-tight">
+          <Dna className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+          Chess<span className="text-emerald-600 dark:text-emerald-400">DNA</span>
+        </span>
+        <div className="flex items-center gap-2">
+          <a
+            href={TRAINER_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm font-medium text-stone-700 transition-colors hover:border-stone-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-zinc-700"
+          >
+            <BookOpen className="h-4 w-4" />
+            <span className="hidden sm:inline">Openings Trainer</span>
+            <span className="sm:hidden">Trainer</span>
+          </a>
+          <ThemeToggle />
+        </div>
+      </div>
+
       {state === "idle" && (
         <SearchForm
           onSubmit={(v) => void handleSubmit(v)}
@@ -188,19 +212,19 @@ export default function Home() {
 
       {state === "error" && (
         <div className="mx-auto w-full max-w-2xl px-4 pt-24 sm:pt-32">
-          <div className="rounded-2xl border border-rose-500/25 bg-zinc-900/50 p-6 sm:p-8">
+          <div className="rounded-2xl border border-rose-200 bg-white p-6 sm:p-8 dark:border-rose-500/25 dark:bg-zinc-900/50">
             <div className="flex items-center gap-3">
-              <AlertTriangle className="h-5 w-5 text-rose-400" />
-              <h2 className="font-display text-xl font-bold text-zinc-50">
+              <AlertTriangle className="h-5 w-5 text-rose-500 dark:text-rose-400" />
+              <h2 className="font-display text-xl font-bold text-stone-900 dark:text-zinc-50">
                 Analysis didn&apos;t complete
               </h2>
             </div>
-            <p className="mt-3 text-sm leading-relaxed text-zinc-400">{error}</p>
+            <p className="mt-3 text-sm leading-relaxed text-stone-600 dark:text-zinc-400">{error}</p>
             <div className="mt-6 flex flex-wrap gap-2">
               <button
                 type="button"
                 onClick={handleRetry}
-                className="inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-4 py-2 text-sm font-bold text-zinc-950 transition-colors hover:bg-emerald-400"
+                className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-emerald-500 dark:bg-emerald-500 dark:text-zinc-950 dark:hover:bg-emerald-400"
               >
                 <RotateCcw className="h-4 w-4" />
                 Retry analysis
@@ -208,7 +232,7 @@ export default function Home() {
               <button
                 type="button"
                 onClick={handleNewAnalysis}
-                className="inline-flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950 px-4 py-2 text-sm font-medium text-zinc-300 transition-colors hover:border-zinc-700"
+                className="inline-flex items-center gap-2 rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 transition-colors hover:border-stone-400 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:border-zinc-700"
               >
                 <ArrowLeft className="h-4 w-4" />
                 Change username
@@ -219,19 +243,19 @@ export default function Home() {
       )}
 
       {state === "done" && result && jobId && (
-        <div className="mx-auto w-full max-w-6xl px-4 pt-8 pb-16 sm:pt-10">
+        <div className="mx-auto w-full max-w-[1400px] px-3 pt-6 pb-16 sm:px-4 sm:pt-8">
           {/* Dashboard header */}
           <header className="flex flex-wrap items-start justify-between gap-4">
             <div>
-              <p className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-zinc-500 uppercase">
-                <Dna className="h-3.5 w-3.5 text-emerald-400" />
+              <p className="flex items-center gap-1.5 text-xs font-semibold tracking-wide text-stone-400 uppercase dark:text-zinc-500">
+                <Dna className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                 ChessDNA diagnostic
               </p>
-              <h1 className="mt-1 font-display text-3xl font-extrabold tracking-tight text-zinc-50 sm:text-4xl">
-                <span className="font-mono text-emerald-400">{result.username}</span>
-                <span className="text-zinc-500">’s blind spots</span>
+              <h1 className="mt-1 font-display text-3xl font-extrabold tracking-tight text-stone-900 sm:text-4xl dark:text-zinc-50">
+                <span className="font-mono text-emerald-600 dark:text-emerald-400">{result.username}</span>
+                <span className="text-stone-400 dark:text-zinc-500">’s blind spots</span>
               </h1>
-              <p className="mt-2 text-sm text-zinc-400">
+              <p className="mt-2 text-sm text-stone-500 dark:text-zinc-400">
                 {platformDisplay(result.platform)} ·{" "}
                 {timeControlDisplay(result.time_control)} ·{" "}
                 {result.games_analyzed} games analyzed
@@ -240,7 +264,7 @@ export default function Home() {
             <button
               type="button"
               onClick={handleNewAnalysis}
-              className="inline-flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-900 px-4 py-2 text-sm font-medium text-zinc-200 transition-colors hover:border-zinc-700"
+              className="inline-flex items-center gap-2 rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-700 transition-colors hover:border-stone-400 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200 dark:hover:border-zinc-700"
             >
               <ArrowLeft className="h-4 w-4" />
               New analysis
@@ -250,19 +274,19 @@ export default function Home() {
           {/* Headline verdict: the #1 issue, in one plain-English line */}
           {topSpot ? (
             <div className="mt-6">
-              <p className="font-display text-xl leading-snug font-bold text-zinc-50 sm:text-2xl">
+              <p className="font-display text-xl leading-snug font-bold text-stone-900 sm:text-2xl dark:text-zinc-50">
                 Your biggest leak is{" "}
-                <span className="text-rose-300">
+                <span className="text-rose-600 dark:text-rose-300">
                   {tagLabel(topSpot.tag, topSpot.label)}
                 </span>{" "}
                 — {formatPct(topSpot.pct, 1)} of your flagged mistakes.
               </p>
-              <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-zinc-400">
+              <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-stone-500 dark:text-zinc-400">
                 {topSpot.explanation}
               </p>
             </div>
           ) : (
-            <p className="mt-6 font-display text-xl leading-snug font-bold text-zinc-50 sm:text-2xl">
+            <p className="mt-6 font-display text-xl leading-snug font-bold text-stone-900 sm:text-2xl dark:text-zinc-50">
               No single habit dominates your mistakes — work through the
               biggest buckets below.
             </p>
@@ -283,6 +307,7 @@ export default function Home() {
                 onTrainPosition={handleTrainPosition}
               />
             )}
+            <Recommendations result={result} />
             <CoachPanel
               jobId={jobId}
               username={result.username}
@@ -290,9 +315,17 @@ export default function Home() {
             />
           </div>
 
-          <footer className="mt-8 border-t border-zinc-800/80 pt-4 text-center font-mono text-xs text-zinc-600">
+          <footer className="mt-8 border-t border-stone-200 pt-4 text-center font-mono text-xs text-stone-400 dark:border-zinc-800/80 dark:text-zinc-600">
             Analyzed with Stockfish at depth {ENGINE_DEPTH} ·{" "}
-            {formatTimestamp(result.analyzed_at)}
+            {formatTimestamp(result.analyzed_at)} ·{" "}
+            <a
+              href={TRAINER_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-emerald-700 hover:text-emerald-600 dark:text-emerald-400 dark:hover:text-emerald-300"
+            >
+              GothamChess Openings Trainer
+            </a>
           </footer>
         </div>
       )}

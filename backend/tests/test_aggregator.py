@@ -336,3 +336,143 @@ def test_practice_plan_positions_capped_and_ranked():
     assert len(plan) == 1
     # Highest win-prob drops first, capped at 4.
     assert plan[0]["positions"] == ["fen-5", "fen-4", "fen-3", "fen-2"]
+
+
+# ---------------------------------------------------------------------------
+# loss_breakdown (v3)
+# ---------------------------------------------------------------------------
+
+
+def test_loss_breakdown_by_phase_cause_and_eco():
+    g1 = _analysis("white", "loss", "B12", "Caro-Kann", [
+        _move("blunder", cp_loss=200, wp_drop=20.0, move_number=5,
+              tags=["missed_tactic"], primary="missed_tactic"),
+        _move("blunder", cp_loss=400, wp_drop=40.0, move_number=15,
+              tags=["missed_defense"], primary="missed_defense"),
+    ])
+    g2 = _analysis("black", "loss", "C50", "Italian Game", [
+        _move("blunder", cp_loss=250, wp_drop=25.0, move_number=35,
+              tags=["endgame_technique", "time_scramble_panic"],
+              primary="endgame_technique", clock_seconds=10.0),
+    ])
+    g3 = _analysis("white", "loss", "B12", "Caro-Kann", [
+        _move("blunder", cp_loss=150, wp_drop=15.0, move_number=8,
+              tags=["missed_development"], primary="missed_development"),
+    ])
+    g4 = _analysis("white", "win", "C50", "Italian Game", [_move("ok")])
+    g5 = _analysis("black", "loss", "D02", "Queen's Pawn Game",
+                   [_move("ok"), _move("mistake", cp_loss=80, move_number=20)])
+    dna = _dna([g1, g2, g3, g4, g5])
+    lb = dna["loss_breakdown"]
+    # Decisive swings: g1 -> move 15 middlegame/missed_defense (max cp_loss),
+    # g2 -> move 35 endgame/endgame_technique, g3 -> move 8 opening.
+    assert lb["by_phase"] == {"opening": 1, "middlegame": 1, "endgame": 1}
+    assert lb["by_cause"] == {
+        "missed_defense": 1, "endgame_technique": 1, "missed_development": 1,
+    }
+    assert lb["time_trouble_losses"] == 1
+    assert lb["losses_without_blunder"] == 1
+    assert lb["conversion_collapses"] == 0
+    # Sorted by losses desc, then played desc.
+    assert [(e["eco"], e["played"], e["lost"], e["loss_rate"]) for e in lb["by_eco"]] == [
+        ("B12", 2, 2, 100.0),
+        ("C50", 2, 1, 50.0),
+        ("D02", 1, 1, 100.0),
+    ]
+    assert lb["by_eco"][0]["eco_name"] == "Caro-Kann"
+
+
+def test_loss_breakdown_decisive_swing_tie_goes_to_earliest():
+    moves = [
+        _move("blunder", cp_loss=300, wp_drop=30.0, move_number=12,
+              tags=["missed_tactic"], primary="missed_tactic"),
+        _move("blunder", cp_loss=300, wp_drop=30.0, move_number=20,
+              tags=["missed_defense"], primary="missed_defense"),
+    ]
+    dna = _dna([_analysis("white", "loss", "B12", "Caro-Kann", moves)])
+    assert dna["loss_breakdown"]["by_cause"] == {"missed_tactic": 1}
+
+
+def test_loss_breakdown_conversion_collapses():
+    # Winning (+300cp) but not won: the loss and the draw both count.
+    def winning_game(result, max_eval):
+        return _analysis("white", result, "B12", "Caro-Kann", [
+            _move("blunder", cp_loss=200, wp_drop=20.0, move_number=15,
+                  tags=["missed_tactic"], primary="missed_tactic"),
+        ], max_eval_cp=max_eval)
+    dna = _dna([
+        winning_game("loss", 400),
+        winning_game("draw", 500),
+        winning_game("win", 600),
+        _analysis("white", "loss", "B12", "Caro-Kann", [
+            _move("blunder", cp_loss=200, wp_drop=20.0, move_number=15,
+                  tags=["missed_tactic"], primary="missed_tactic"),
+        ], max_eval_cp=100),
+    ])
+    lb = dna["loss_breakdown"]
+    assert lb["conversion_collapses"] == 2
+    assert lb["by_cause"] == {"missed_tactic": 2}
+
+
+def test_loss_breakdown_empty_when_no_losses():
+    dna = _dna([_analysis("white", "win", "B12", "Caro-Kann", [_move("ok")])])
+    assert dna["loss_breakdown"] == {
+        "by_phase": {"opening": 0, "middlegame": 0, "endgame": 0},
+        "by_cause": {},
+        "by_eco": [],
+        "time_trouble_losses": 0,
+        "conversion_collapses": 0,
+        "losses_without_blunder": 0,
+    }
+
+
+# ---------------------------------------------------------------------------
+# v3 tag metadata: labels, explanations, practice titles/drills
+# ---------------------------------------------------------------------------
+
+NEW_TAGS = [
+    "missed_development",
+    "missed_exchange",
+    "missed_discovery",
+    "missed_retreat",
+    "weakened_defense",
+    "allowed_counterplay",
+    "passive_piece",
+    "endgame_technique",
+]
+
+
+def test_new_tags_have_full_metadata():
+    from app.analyzer.aggregator import (
+        BLIND_SPOT_EXPLANATIONS,
+        BLIND_SPOT_LABELS,
+        PRACTICE_DRILLS,
+        PRACTICE_TITLES,
+    )
+
+    for tag in NEW_TAGS:
+        assert BLIND_SPOT_LABELS[tag] != tag
+        assert BLIND_SPOT_EXPLANATIONS[tag]
+        assert PRACTICE_TITLES[tag]
+        drills = PRACTICE_DRILLS[tag]
+        assert len(drills) >= 2
+        for drill in drills:
+            assert drill["title"] and drill["detail"]
+            assert drill["minutes_per_day"] > 0
+
+
+def test_practice_plan_uses_new_tag_drills():
+    moves = [
+        _move("blunder", cp_loss=200, wp_drop=20.0, move_number=15,
+              tags=["passive_piece"], primary="passive_piece"),
+        _move("blunder", cp_loss=180, wp_drop=18.0, move_number=18,
+              tags=["passive_piece"], primary="passive_piece"),
+        _move("blunder", cp_loss=300, wp_drop=30.0, move_number=20,
+              tags=["missed_tactic"], primary="missed_tactic"),
+    ]
+    dna = _dna([_analysis("white", "loss", "B12", "Caro-Kann", moves)])
+    plan = dna["practice_plan"]
+    assert plan[0]["tag"] == "passive_piece"
+    assert plan[0]["title"] == "Keep Pieces Active"
+    assert len(plan[0]["drills"]) == 3
+    assert "passive piece" in dna["blind_spots"][0]["label"].lower()

@@ -45,11 +45,14 @@ def test_cloud_hit_white_perspective(tmp_path):
     assert calls["n"] == 1
 
 
-def test_cloud_hit_black_to_move_negated(tmp_path):
+def test_cloud_hit_black_to_move_not_negated(tmp_path):
+    # The Lichess API returns evals from WHITE's perspective (verified
+    # against local Stockfish 2026-11-16): a black-to-move position with
+    # cp +30 is +30 for White, not -30. No sign flip is applied.
     client, _ = _client(tmp_path, lambda req: _hit(cp=30, moves="e7e5 d2d4"))
     result = client.lookup(chess.Board(AFTER_E4_FEN))
     assert result is not None
-    assert result.cp_white == -30
+    assert result.cp_white == 30
     assert result.best_move.uci() == "e7e5"
 
 
@@ -64,8 +67,9 @@ def test_cloud_mate_black_to_move(tmp_path):
     client, _ = _client(tmp_path, lambda req: _hit(mate=-2, moves="e7e5"))
     result = client.lookup(chess.Board(AFTER_E4_FEN))
     assert result is not None
-    # Black is mated in 2: terrible for black -> great for white.
-    assert result.cp_white == 10000 - 2
+    # mate -2 means WHITE is mated in 2 (API is White-perspective):
+    # terrible for White regardless of who is to move.
+    assert result.cp_white == -(10000 - 2)
 
 
 def test_cloud_404_miss_memoized(tmp_path):

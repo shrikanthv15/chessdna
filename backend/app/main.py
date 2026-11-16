@@ -5,6 +5,9 @@ Endpoints:
     POST /api/analyze         start an analysis job (202 + job_id)
     GET  /api/status/{job_id} job progress and PlayerDNA result
     POST /api/coach           coaching summary + checklist for a finished job
+    POST /api/position        single-position eval + move classification
+                              (sparring / play-with-bots; never uses the
+                              analysis job lock)
 
 Jobs run as asyncio background tasks; the Stockfish work runs in a worker
 thread (``asyncio.to_thread``) so the event loop stays responsive. Job
@@ -31,12 +34,13 @@ from .cache import FileCache, cache_key
 from .config import settings
 from .services.coach import generate_coaching
 from .services.fetcher import FetchError, backfill_game_dates, fetch_games
+from .services.sparring import analyze_position
 
 FETCH_CACHE_TTL_SECONDS = 3600.0
 
 # Bump when the classifier or engine output format changes, so cached
 # per-game analyses are re-computed instead of serving stale tags.
-ANALYSIS_CACHE_VERSION = "2"
+ANALYSIS_CACHE_VERSION = "3"
 
 app = FastAPI(title="ChessDNA", version="1.0.0")
 
@@ -72,6 +76,12 @@ class CoachRequest(BaseModel):
     llm_base_url: str | None = None
     llm_api_key: str | None = None
     llm_model: str | None = None
+
+
+class PositionRequest(BaseModel):
+    fen: str = Field(min_length=1)
+    move_uci: str | None = None
+    depth: int = Field(default=16, ge=1, le=20)
 
 
 # ---------------------------------------------------------------------------
@@ -287,3 +297,30 @@ async def coach(request: CoachRequest) -> dict[str, Any]:
         llm_api_key=request.llm_api_key,
         llm_model=request.llm_model,
     )
+
+
+# ---------------------------------------------------------------------------
+# sparring: single-position evaluation
+# ---------------------------------------------------------------------------
+
+
+@app.post("/api/position")
+async def position(request: PositionRequest) -> dict[str, Any]:
+    """Evaluate one position, optionally classifying a played move.
+
+    Runs in a worker thread with its own short-lived Stockfish process
+    and never touches the analysis job lock, so sparring stays live
+    while a batch job runs. Invalid FEN / illegal move -> 400.
+    """
+    try:
+        return await asyncio.to_thread(
+            analyze_position,
+            request.fen,
+            request.move_uci,
+            request.depth,
+            settings.STOCKFISH_PATH,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc))

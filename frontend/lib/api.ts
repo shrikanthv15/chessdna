@@ -4,6 +4,8 @@ import type {
   CoachRequest,
   CoachResponse,
   HealthResponse,
+  PositionRequest,
+  PositionResponse,
   StatusResponse,
 } from "./types";
 
@@ -52,6 +54,17 @@ export function getJobStatus(jobId: string): Promise<StatusResponse> {
 
 export function getCoaching(body: CoachRequest): Promise<CoachResponse> {
   return request<CoachResponse>("/api/coach", {
+    method: "POST",
+    body: JSON.stringify(body),
+  });
+}
+
+/** Single-position engine query (v3 backend): eval + best move + PV, and
+ *  classifier feedback when a played move is supplied. Throws when the
+ *  backend is unreachable or the endpoint doesn't exist yet (v2 backend)
+ *  — callers must degrade gracefully. */
+export function postPosition(body: PositionRequest): Promise<PositionResponse> {
+  return request<PositionResponse>("/api/position", {
     method: "POST",
     body: JSON.stringify(body),
   });

@@ -19,7 +19,13 @@ The Lichess API is a free public service — the disk cache is what keeps
 repeat analyses off it entirely.
 
 Eval conventions match ``analyzer/engine.py``: centipawns from White's
-perspective, mates encoded as ±(MATE_CP - distance).
+perspective, mates encoded as ±(MATE_CP - distance). The Lichess API
+already returns evals from White's perspective — verified 2026-11-16
+against local Stockfish (after 1.e4, black to move: API cp +18, local
++20s; after 1.e4 e5 2.Qh5, black to move: API cp -25, local -28; black
+mating in 1: API mate -1) — so NO sign flip is applied for black-to-move
+positions. (An earlier version flipped the sign, inverting every
+cloud-sourced eval with Black to move; fixed 2026-11-16.)
 """
 from __future__ import annotations
 
@@ -62,7 +68,8 @@ def _fen_key(fen: str) -> str:
 
 
 def _mate_to_cp(mate: int) -> int:
-    """Mate distance (side-to-move perspective) -> centipawns."""
+    """Mate distance (White's perspective, as the API returns it) ->
+    centipawns. Positive mate = White mates; negative = White is mated."""
     return MATE_CP - mate if mate > 0 else -MATE_CP - mate
 
 
@@ -122,10 +129,11 @@ class CloudEvalClient:
     ) -> CloudEvalResult | None:
         """Convert a stored raw payload to engine conventions.
 
-        Stored payloads keep the API's side-to-move perspective
-        (``cp``/``mate``) plus the best move in UCI. The best move is
-        re-validated against the board: a stored move that is not legal
-        here means corrupt/stale data and is treated as a miss.
+        Stored payloads keep the API's White-perspective ``cp``/``mate``
+        plus the best move in UCI — no sign flip is applied (see the
+        module docstring). The best move is re-validated against the
+        board: a stored move that is not legal here means corrupt/stale
+        data and is treated as a miss.
         """
         if not stored:
             return None
@@ -134,14 +142,13 @@ class CloudEvalClient:
             if best not in board.legal_moves:
                 return None
             if stored.get("mate") is not None:
-                cp_side = _mate_to_cp(int(stored["mate"]))
+                cp_white = _mate_to_cp(int(stored["mate"]))
             elif stored.get("cp") is not None:
-                cp_side = int(stored["cp"])
+                cp_white = int(stored["cp"])
             else:
                 return None
         except (KeyError, ValueError, TypeError):
             return None
-        cp_white = cp_side if board.turn == chess.WHITE else -cp_side
         return CloudEvalResult(
             cp_white=cp_white, best_move=best, depth=int(stored.get("depth", 0))
         )

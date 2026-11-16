@@ -1,9 +1,28 @@
 @import "tailwindcss";
 
+/* Class-based dark mode: `.dark` on <html>, toggled by ThemeToggle and
+ * persisted in localStorage (default: light). */
+@custom-variant dark (&:where(.dark, .dark *));
+
 @theme inline {
   --font-display: var(--font-jakarta), ui-sans-serif, system-ui, sans-serif;
   --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-jetbrains), ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+:root {
+  /* Warm paper light theme (default). */
+  --paper: #faf7f0;
+  --chart-grid: #e7e5e4;
+  --chart-label: #a8a29e;
+  --chart-cursor: #57534e;
+}
+
+.dark {
+  --paper: #0a0a0b;
+  --chart-grid: #27272a;
+  --chart-label: #71717a;
+  --chart-cursor: #e4e4e7;
 }
 
 html {
@@ -11,8 +30,7 @@ html {
 }
 
 body {
-  background-color: #0a0a0b;
-  color: #f4f4f5;
+  background-color: var(--paper);
 }
 
 /* Slim scrollbars for blunder lists / drawers */
@@ -21,8 +39,11 @@ body {
   height: 8px;
 }
 *::-webkit-scrollbar-thumb {
-  background: #3f3f46;
+  background: #d6d3d1;
   border-radius: 8px;
+}
+.dark *::-webkit-scrollbar-thumb {
+  background: #3f3f46;
 }
 *::-webkit-scrollbar-track {
   background: transparent;

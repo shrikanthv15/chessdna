@@ -360,19 +360,22 @@ def test_king_safety_no_fire_for_king_move():
 
 
 def test_fallback_explains_with_numbers_and_best_move():
-    # 1.e4 e5, then a bizarre Ke2. No pattern fires, but the explanation
-    # must name the best move and the eval swing — never generic filler.
+    # 1.e4 e5 2.Nf3, best Bc4: a quiet developing move with a quiet best
+    # move. No pattern fires, but the explanation must name the best move
+    # and the eval swing — never generic filler. (The old Ke2 version of
+    # this test now fires missed_development, correctly: Ke2 in the
+    # opening instead of developing IS the pattern.)
     start = chess.Board().fen()
     fen_before = _after(_after(start, "e2e4"), "e7e5")
     result = _classify(
-        fen_before, "e1e2", opp_prev_uci="e7e5",
+        fen_before, "g1f3", opp_prev_uci="e7e5",
         fen_before_opp=_after(start, "e2e4"),
         clock=300.0, move_time=20.0,
-        best_uci="g1f3", eval_before=20, eval_after=-180,
+        best_uci="f1c4", eval_before=20, eval_after=-180,
     )
     assert result.primary == "unclassified"
     expl = result.explanations["unclassified"]
-    assert "Nf3" in expl
+    assert "Bc4" in expl
     assert "200cp" in expl
     assert "no single pattern matched" not in expl
 

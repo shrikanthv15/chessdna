@@ -38,6 +38,14 @@ BLIND_SPOT_LABELS = {
     "missed_defense": "Missed Defense",
     "left_piece_hanging": "Left Piece Hanging",
     "king_safety": "King Safety",
+    "missed_development": "Missed Development",
+    "missed_exchange": "Missed Exchange",
+    "missed_discovery": "Missed Discovery",
+    "missed_retreat": "Missed Retreat",
+    "weakened_defense": "Weakened Defense",
+    "allowed_counterplay": "Allowed Counterplay",
+    "passive_piece": "Passive Piece",
+    "endgame_technique": "Endgame Technique",
     "unclassified": "Unclassified",
 }
 
@@ -98,6 +106,51 @@ BLIND_SPOT_EXPLANATIONS = {
         "new attack on the king's vicinity. Pawns in front of your "
         "castled king don't move for free."
     ),
+    "missed_development": (
+        "In the opening, the best move developed a new piece while the "
+        "move played didn't. Every opening move should develop a piece, "
+        "control the centre, or get the king safe — moves that do none of "
+        "these hand your opponent free tempi."
+    ),
+    "missed_exchange": (
+        "The best move captured a central pawn or piece at no material "
+        "cost, and the move played left it standing. Central captures "
+        "that win material for free are rarely wrong — check the centre "
+        "before playing a quiet move."
+    ),
+    "missed_discovery": (
+        "The best move opened a line for a bishop, rook, or queen behind "
+        "it, creating a discovered attack the move played missed. Before "
+        "moving a piece, look at what lines it is currently blocking."
+    ),
+    "missed_retreat": (
+        "A piece was under attack and the best move carried it to safety, "
+        "but the move played left it under fire. When a piece is "
+        "attacked, the first candidate is always the move that saves it."
+    ),
+    "weakened_defense": (
+        "The move carried away a defender of an attacked piece, dropping "
+        "its defense to a single piece while the best move kept the "
+        "defense intact. Before moving a piece, check what it is "
+        "defending."
+    ),
+    "allowed_counterplay": (
+        "After the move played, the opponent had a reply that created a "
+        "concrete threat or mate in one — a reply the best move "
+        "prevented. Always ask what your opponent's best reply is before "
+        "you commit."
+    ),
+    "passive_piece": (
+        "The move sent a piece to a square with far fewer options while "
+        "the best move kept it active. Pieces on the edge of the board "
+        "do less work — keep them central and mobile."
+    ),
+    "endgame_technique": (
+        "In the endgame, the best move used a concrete technique — "
+        "checking to support a pawn about to queen, or activating the "
+        "king — and the move played did neither. Endgames are won by "
+        "king activity and passed pawns, not by waiting."
+    ),
     "unclassified": (
         "Tactical oversights that didn't match a single recurring pattern."
     ),
@@ -114,6 +167,14 @@ PRACTICE_TITLES = {
     "left_piece_hanging": "Stop Leaving Pieces En Prise",
     "backward_or_long_range_blindness": "See the Whole Board",
     "king_safety": "Protect Your King",
+    "missed_development": "Develop Every Opening Move",
+    "missed_exchange": "Take the Free Central Captures",
+    "missed_discovery": "Spot Discovered Attacks",
+    "missed_retreat": "Save Attacked Pieces First",
+    "weakened_defense": "Don't Weaken Your Own Defense",
+    "allowed_counterplay": "Stop the Opponent's Best Reply",
+    "passive_piece": "Keep Pieces Active",
+    "endgame_technique": "Master Endgame Technique",
     "time_scramble_panic": "Fix Your Clock Management",
     "conversion_collapse": "Convert Winning Positions",
     "unclassified": "Sharpen General Calculation",
@@ -289,6 +350,142 @@ PRACTICE_DRILLS: dict[str, list[dict[str, Any]]] = {
             "title": "Whole-board scan",
             "detail": "Before every move, spend 5 seconds scanning all four corners for checks, captures, and threats you haven't noticed yet.",
             "minutes_per_day": 5,
+        },
+    ],
+    "missed_development": [
+        {
+            "title": "Development race",
+            "detail": "Play 5 rapid games where your only goal is all four minor pieces out and castled by move 10. Count how many opening moves develop something.",
+            "minutes_per_day": 15,
+        },
+        {
+            "title": "One-move rule",
+            "detail": "Never move the same piece twice before move 10 unless it wins material or stops mate. Review your last 5 games and flag every repeat move.",
+            "minutes_per_day": 10,
+        },
+        {
+            "title": "Centre first",
+            "detail": "Solve 10 opening positions: for each, name the developing move before checking the engine. Prefer moves that develop AND control e4, d4, e5, or d5.",
+            "minutes_per_day": 10,
+        },
+    ],
+    "missed_exchange": [
+        {
+            "title": "Centre captures scan",
+            "detail": "After every opponent move, ask: can I capture anything on d4, e4, d5, or e5 for free? Do it out loud for 10 games until it is automatic.",
+            "minutes_per_day": 10,
+        },
+        {
+            "title": "Trade evaluation",
+            "detail": "Work through 10 positions where a central trade is possible. For each, count attackers and defenders on the square before deciding.",
+            "minutes_per_day": 10,
+        },
+        {
+            "title": "Pawn tension timing",
+            "detail": "Study 5 master games in your openings and note every central pawn tension and when it was resolved. Imitate the timing in your own games.",
+            "minutes_per_day": 10,
+        },
+    ],
+    "missed_discovery": [
+        {
+            "title": "Line-opening puzzles",
+            "detail": "Solve 15 discovered-attack puzzles. For each, name the piece that moves and the slider behind it before playing the move.",
+            "minutes_per_day": 15,
+        },
+        {
+            "title": "What's behind it?",
+            "detail": "In your games, before moving any piece, ask what line it is blocking and what it would uncover. Do it for 10 games.",
+            "minutes_per_day": 10,
+        },
+        {
+            "title": "Battery building",
+            "detail": "Practice placing a bishop or queen behind a knight or pawn, then playing the uncovering move. Set up 10 positions against the engine.",
+            "minutes_per_day": 10,
+        },
+    ],
+    "missed_retreat": [
+        {
+            "title": "Attacked-piece check",
+            "detail": "After every opponent move, list your attacked pieces. If one is attacked, find the safest square first, then consider everything else.",
+            "minutes_per_day": 10,
+        },
+        {
+            "title": "Retreat squares",
+            "detail": "Solve 10 puzzles where the only good move saves an attacked piece. Name the attacker and the safe square out loud.",
+            "minutes_per_day": 10,
+        },
+        {
+            "title": "Safe-square scan",
+            "detail": "In 5 of your recent losses, find every move where you left an attacked piece standing. Replay the game with the retreat played instead.",
+            "minutes_per_day": 10,
+        },
+    ],
+    "weakened_defense": [
+        {
+            "title": "Defender audit",
+            "detail": "Before every move, name what your piece currently defends. If it is the only defender of an attacked piece, don't move it without a replacement.",
+            "minutes_per_day": 10,
+        },
+        {
+            "title": "Deflection puzzles",
+            "detail": "Solve 10 puzzles where the key idea is luring or removing a defender. Focus on spotting which piece holds the position together.",
+            "minutes_per_day": 10,
+        },
+        {
+            "title": "Two defenders rule",
+            "detail": "In your games, aim for every attacked piece to have two defenders. Review your last 5 games and count the single-defender moments.",
+            "minutes_per_day": 10,
+        },
+    ],
+    "allowed_counterplay": [
+        {
+            "title": "Opponent's best reply",
+            "detail": "Before playing any move in a sharp position, spend 15 seconds finding your opponent's best reply. If it creates a threat, find a move that stops it.",
+            "minutes_per_day": 15,
+        },
+        {
+            "title": "Candidate plus reply",
+            "detail": "For 10 positions from your games, write down your candidate move AND the opponent's best reply before checking with the engine.",
+            "minutes_per_day": 10,
+        },
+        {
+            "title": "Prophylaxis study",
+            "detail": "Study 3 annotated master games focusing on prophylactic moves — moves that stop the opponent's idea before it starts.",
+            "minutes_per_day": 10,
+        },
+    ],
+    "passive_piece": [
+        {
+            "title": "Activity count",
+            "detail": "After every move in your games, count how many squares your moved piece controls. Aim for 6+ for minor pieces in the middlegame.",
+            "minutes_per_day": 10,
+        },
+        {
+            "title": "Edge-piece audit",
+            "detail": "Review your last 5 games and flag every piece that ended on the a- or h-file or the first two ranks. Find the active alternative.",
+            "minutes_per_day": 10,
+        },
+        {
+            "title": "Centralization drills",
+            "detail": "Solve 10 puzzles where the key is centralizing a knight or bishop. Name the outpost square before moving.",
+            "minutes_per_day": 10,
+        },
+    ],
+    "endgame_technique": [
+        {
+            "title": "King activation",
+            "detail": "Play 10 king-and-pawn endgames against the engine. Your only goal: centralize the king before pushing pawns.",
+            "minutes_per_day": 15,
+        },
+        {
+            "title": "Passed-pawn push",
+            "detail": "Drill rook endgames with a passed pawn: learn when to push, when to check, and when to bring the king. 15 minutes a day.",
+            "minutes_per_day": 15,
+        },
+        {
+            "title": "Cut-off practice",
+            "detail": "Set up 5 positions where the king must cut off the enemy king. Practice until the cut-off squares are automatic.",
+            "minutes_per_day": 10,
         },
     ],
 }
@@ -472,6 +669,63 @@ def build_player_dna(
         else 0.0
     )
 
+    # Loss breakdown: where did the lost games actually break? The
+    # decisive swing of a lost game is its biggest blunder (max cp_loss;
+    # ties go to the earliest — moves are in game order and max() keeps
+    # the first maximal element). Lost games with no blunder-level move
+    # have no decisive swing and are counted separately.
+    by_phase_counts: Counter[str] = Counter()
+    by_cause_counts: Counter[str] = Counter()
+    time_trouble_losses = 0
+    losses_without_blunder = 0
+    eco_loss: dict[str, dict[str, Any]] = defaultdict(
+        lambda: {"games": 0, "losses": 0, "names": Counter()}
+    )
+    for analysis in analyses:
+        game = analysis["game"]
+        eco = game["eco"] or "???"
+        slot = eco_loss[eco]
+        slot["games"] += 1
+        slot["names"][game["eco_name"] or "Unknown Opening"] += 1
+        if game["result"] != "loss":
+            continue
+        slot["losses"] += 1
+        game_blunders = [m for m in analysis["moves"] if m["severity"] == "blunder"]
+        if not game_blunders:
+            losses_without_blunder += 1
+            continue
+        decisive = max(game_blunders, key=lambda m: m["cp_loss"])
+        by_phase_counts[decisive["phase"]] += 1
+        by_cause_counts[decisive.get("primary", "unclassified")] += 1
+        if "time_scramble_panic" in decisive.get("tags", []):
+            time_trouble_losses += 1
+    by_eco_loss = [
+        {
+            "eco": eco,
+            "eco_name": slot["names"].most_common(1)[0][0],
+            "played": slot["games"],
+            "lost": slot["losses"],
+            "loss_rate": round(100.0 * slot["losses"] / slot["games"], 1),
+        }
+        for eco, slot in eco_loss.items()
+        if slot["losses"] > 0
+    ]
+    by_eco_loss.sort(key=lambda e: (-e["lost"], -e["played"]))
+    loss_breakdown = {
+        "by_phase": {
+            "opening": by_phase_counts.get("opening", 0),
+            "middlegame": by_phase_counts.get("middlegame", 0),
+            "endgame": by_phase_counts.get("endgame", 0),
+        },
+        "by_cause": dict(by_cause_counts),
+        "by_eco": by_eco_loss,
+        "time_trouble_losses": time_trouble_losses,
+        # Same winning-position definition as ``conversion`` above:
+        # max_eval_cp >= +300 (user perspective) and the game was not won.
+        "conversion_collapses": conv["losses"] + conv["draws"],
+        "losses_without_blunder": losses_without_blunder,
+    }
+
     for move in all_moves:
         move.pop("_game", None)
 
@@ -501,6 +755,7 @@ def build_player_dna(
         "blind_spots": blind_spots,
         "blunders": blunders,
         "conversion": conv,
+        "loss_breakdown": loss_breakdown,
         "top_blind_spot": top_blind_spot,
         "practice_plan": practice_plan,
         "analyzed_at": datetime.now(timezone.utc).isoformat(),

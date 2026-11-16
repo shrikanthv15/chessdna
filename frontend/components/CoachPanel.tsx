@@ -36,16 +36,16 @@ export default function CoachPanel({ jobId, username, settings }: CoachPanelProp
   }
 
   return (
-    <section className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5 sm:p-6">
+    <section className="rounded-xl border border-stone-200 bg-white p-5 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900/50">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
-            <Sparkles className="h-4 w-4 text-zinc-400" />
-            <h2 className="font-display text-lg font-bold text-zinc-50">
+            <Sparkles className="h-4 w-4 text-stone-500 dark:text-zinc-400" />
+            <h2 className="font-display text-lg font-bold text-stone-900 dark:text-zinc-50">
               AI Coach
             </h2>
           </div>
-          <p className="mt-1 text-sm text-zinc-500">
+          <p className="mt-1 text-sm text-stone-500 dark:text-zinc-500">
             A personalized summary of your diagnostic, plus a pre-move
             checklist built around your #1 leak.
           </p>
@@ -54,8 +54,8 @@ export default function CoachPanel({ jobId, username, settings }: CoachPanelProp
           <span
             className={`rounded-full border px-2.5 py-1 text-xs font-medium ${
               report.source === "llm"
-                ? "border-emerald-500/40 bg-emerald-500/10 text-emerald-300"
-                : "border-zinc-700 bg-zinc-800/60 text-zinc-300"
+                ? "border-emerald-600/40 bg-emerald-600/10 text-emerald-700 dark:border-emerald-500/40 dark:bg-emerald-500/10 dark:text-emerald-300"
+                : "border-stone-300 bg-stone-100 text-stone-600 dark:border-zinc-700 dark:bg-zinc-800/60 dark:text-zinc-300"
             }`}
           >
             {report.source === "llm"
@@ -70,7 +70,7 @@ export default function CoachPanel({ jobId, username, settings }: CoachPanelProp
           type="button"
           onClick={handleGenerate}
           disabled={loading}
-          className="mt-5 inline-flex items-center gap-2 rounded-lg bg-emerald-500 px-4 py-2.5 text-sm font-bold text-zinc-950 transition-colors hover:bg-emerald-400 disabled:cursor-not-allowed disabled:opacity-50"
+          className="mt-5 inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-emerald-500 dark:text-zinc-950 dark:hover:bg-emerald-400"
         >
           {loading ? (
             <>
@@ -87,7 +87,7 @@ export default function CoachPanel({ jobId, username, settings }: CoachPanelProp
       )}
 
       {error && (
-        <p className="mt-4 flex items-center gap-2 rounded-lg border border-rose-500/30 bg-rose-500/10 px-3 py-2 text-sm text-rose-200">
+        <p className="mt-4 flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700 dark:border-rose-500/30 dark:bg-rose-500/10 dark:text-rose-200">
           <AlertCircle className="h-4 w-4 shrink-0" />
           {error}
         </p>
@@ -95,7 +95,7 @@ export default function CoachPanel({ jobId, username, settings }: CoachPanelProp
 
       {report && (
         <div className="mt-5 space-y-4">
-          <p className="text-[15px] leading-relaxed whitespace-pre-line text-zinc-200">
+          <p className="text-[15px] leading-relaxed whitespace-pre-line text-stone-800 dark:text-zinc-200">
             {report.summary}
           </p>
           <ChecklistCard items={report.checklist} username={username} />
@@ -103,7 +103,7 @@ export default function CoachPanel({ jobId, username, settings }: CoachPanelProp
             type="button"
             onClick={handleGenerate}
             disabled={loading}
-            className="inline-flex items-center gap-2 rounded-lg border border-zinc-800 bg-zinc-950 px-3 py-1.5 text-sm font-medium text-zinc-300 transition-colors hover:border-zinc-700 disabled:opacity-50"
+            className="inline-flex items-center gap-2 rounded-lg border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium text-stone-700 transition-colors hover:border-stone-400 disabled:opacity-50 dark:border-zinc-800 dark:bg-zinc-950 dark:text-zinc-300 dark:hover:border-zinc-700"
           >
             {loading ? (
               <>

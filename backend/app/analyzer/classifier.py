@@ -42,6 +42,35 @@ Tags (priority order for ``primary``):
     king_safety
         The move pushed a pawn out of the shelter in front of the king and
         a new enemy attack landed on the king's immediate vicinity.
+    missed_development
+        In the opening, the best move developed a minor piece off its home
+        square and the move played did not develop anything.
+    missed_exchange
+        The best move captured a pawn or piece on a central square
+        (d4/e4/d5/e5) at no material cost (SEE >= 0) and the move played
+        did not make that capture.
+    missed_discovery
+        The best move vacated a square, opening a friendly slider's line
+        onto an enemy piece or a square next to the enemy king; the move
+        played did not open that line.
+    missed_retreat
+        A piece was under attack (an enemy capture of it wins or trades
+        even) and the best move carried it to a safe square; the move
+        played left it under fire.
+    weakened_defense
+        The move carried away a defender of an attacked piece, dropping
+        it to a single defender, while the best move kept the defense.
+    allowed_counterplay
+        The move allowed a concrete reply after which an enemy capture
+        wins material (or mate in one follows), and no such reply exists
+        after the best move.
+    passive_piece
+        The move cut the moved piece's mobility sharply or retreated it
+        while the best move put a piece on an active square.
+    endgame_technique
+        In the endgame, the best move was a forcing check supporting a
+        pawn on the 7th rank, or a king activation gaining 3+ squares of
+        mobility, and the move played did neither.
     time_scramble_panic
         The blunder came with < 25 seconds on the clock, or in < 2 seconds
         of think time in a critical position.
@@ -73,6 +102,14 @@ TAG_PRIORITY = [
     "left_piece_hanging",
     "backward_or_long_range_blindness",
     "king_safety",
+    "missed_development",
+    "missed_exchange",
+    "missed_discovery",
+    "missed_retreat",
+    "weakened_defense",
+    "allowed_counterplay",
+    "passive_piece",
+    "endgame_technique",
     "time_scramble_panic",
     "conversion_collapse",
 ]
@@ -705,6 +742,7 @@ def _tag_missed_mate(
 
 def _tag_missed_tactic(
     board_before: chess.Board,
+    board_after: chess.Board,
     best_move: chess.Move | None,
     played_san: str | None,
     best_san: str | None,
@@ -787,6 +825,101 @@ def _tag_missed_tactic(
                 f"once — the opponent can only save one. "
                 f"Your {played_san} missed it."
             )
+
+    # (d) Best move creates a concrete threat: an enemy piece becomes
+    # profitably capturable (SEE > 0) that was not before, and the played
+    # move does not create the same threat. This is the workhorse for
+    # quiet positional "best moves" (outpost jumps, pawn breaks) whose
+    # point is a threat the opponent must answer next move.
+    threats_before = set(_losing_pieces(board_before, opp))
+    threats_best = _losing_pieces(after, opp)
+    threats_played = set(_losing_pieces(board_after, opp))
+    new_threats = {
+        sq: threats_best[sq]
+        for sq in threats_best
+        if sq not in threats_before and sq not in threats_played
+    }
+    if new_threats:
+        victim_sq = max(
+            new_threats,
+            key=lambda sq: PIECE_VALUES.get(after.piece_at(sq).piece_type, 0),  # type: ignore[union-attr]
+        )
+        attacker_sq, see = new_threats[victim_sq]
+        probe = after.copy(stack=False)
+        probe.turn = user
+        capture = _capture_move(after, attacker_sq, victim_sq)
+        try:
+            capture_san = probe.san(capture)
+        except ValueError:
+            capture_san = capture.uci()
+        victim = after.piece_at(victim_sq)
+        attacker = after.piece_at(attacker_sq)
+        victim_label = (
+            f"the {chess.piece_name(victim.piece_type)} "
+            f"on {chess.square_name(victim_sq)}"
+            if victim is not None
+            else "a piece"
+        )
+        attacker_label = (
+            f"the {chess.piece_name(attacker.piece_type)} "
+            f"on {chess.square_name(attacker_sq)}"
+            if attacker is not None
+            else "a piece"
+        )
+        return (
+            f"Best was {best_san}, creating a concrete threat: {victim_label} "
+            f"is now hanging to {attacker_label} ({capture_san} wins {see}cp "
+            f"of material). Your {played_san} missed it."
+        )
+
+    # (e) Forcing capture sequence: the best move is a capture that does
+    # not win material outright (SEE < 100), but after the opponent's
+    # cheapest recapture the user has a capture winning >= 100cp (SEE).
+    # Verified by playing the two forcing moves, never assumed.
+    if board_before.is_capture(best_move):
+        see = _see(board_before, best_move)
+        if -200 <= see < TACTIC_MIN_SEE_CP:
+            probe = after.copy(stack=False)
+            probe.turn = opp
+            recaptures = [
+                move
+                for move in probe.legal_moves
+                if probe.is_capture(move) and move.to_square == best_move.to_square
+            ]
+            if recaptures:
+                recaptures.sort(
+                    key=lambda m: PIECE_VALUES[after.piece_at(m.from_square).piece_type]  # type: ignore[union-attr]
+                )
+                recap = recaptures[0]
+                recap_san = _san(after, recap.uci())
+                probe.push(recap)
+                follow = _losing_pieces(probe, opp)
+                if follow:
+                    victim_sq = max(
+                        follow,
+                        key=lambda sq: PIECE_VALUES.get(probe.piece_at(sq).piece_type, 0),  # type: ignore[union-attr]
+                    )
+                    attacker_sq, follow_see = follow[victim_sq]
+                    follow_probe = probe.copy(stack=False)
+                    follow_probe.turn = user
+                    follow_move = _capture_move(probe, attacker_sq, victim_sq)
+                    try:
+                        follow_san = follow_probe.san(follow_move)
+                    except ValueError:
+                        follow_san = follow_move.uci()
+                    victim = probe.piece_at(victim_sq)
+                    victim_label = (
+                        f"the {chess.piece_name(victim.piece_type)} "
+                        f"on {chess.square_name(victim_sq)}"
+                        if victim is not None
+                        else "material"
+                    )
+                    return (
+                        f"Best was {best_san}, a forcing capture: after "
+                        f"{recap_san}, {follow_san} wins {victim_label} "
+                        f"({follow_see}cp of material). "
+                        f"Your {played_san} missed the sequence."
+                    )
     return None
 
 
@@ -1012,6 +1145,553 @@ def _tag_king_safety(
 
 
 # ---------------------------------------------------------------------------
+# individual taggers (new in v3: positional patterns)
+#
+# The v2 taggers only see tactics and material. The 37-case rapid training
+# set (tests/fixtures/unclassified_rapid_v2.json) showed the gap: quiet
+# 150-250cp positional losses where nothing hangs and no tactic exists.
+# Every v3 tagger compares the position after the played move with the
+# position after the engine's best move and fires only on a concrete,
+# python-chess-verified difference. Patterns with no support in the data
+# (pawn-structure damage, weak-square outposts) were measured and left
+# out rather than invented; king_safety stays strict for the same reason
+# (no shelter-push case in the training set). Its 1-in-652 firing rate
+# across cached games is the pattern genuinely being rare — loosening it
+# without a verified case would only manufacture false positives.
+# ---------------------------------------------------------------------------
+
+CENTRAL_SQUARES = frozenset(
+    [chess.D4, chess.E4, chess.D5, chess.E5]
+)
+DEVELOPMENT_MOVE_LIMIT = 12  # "opening" for missed_development
+
+
+def _piece_mobility(board: chess.Board, square: chess.Square) -> int:
+    """Legal destinations of the piece on ``square`` (turn flipped to its
+    owner, so this works on positions where it is not that side's move)."""
+    piece = board.piece_at(square)
+    if piece is None:
+        return 0
+    probe = board.copy(stack=False)
+    probe.turn = piece.color
+    return sum(1 for m in probe.legal_moves if m.from_square == square)
+
+
+def _undeveloped_minors(board: chess.Board, color: chess.Color) -> int:
+    """Minor pieces still sitting on their home squares."""
+    home = (
+        (chess.B1, chess.G1, chess.C1, chess.F1)
+        if color == chess.WHITE
+        else (chess.B8, chess.G8, chess.C8, chess.F8)
+    )
+    count = 0
+    for square in home:
+        piece = board.piece_at(square)
+        if (
+            piece is not None
+            and piece.color == color
+            and piece.piece_type in (chess.KNIGHT, chess.BISHOP)
+        ):
+            count += 1
+    return count
+
+
+def _king_vicinity(board: chess.Board, color: chess.Color) -> set[chess.Square]:
+    king_sq = board.king(color)
+    if king_sq is None:
+        return set()
+    return {
+        sq
+        for sq in chess.SQUARES
+        if sq != king_sq and _chebyshev(sq, king_sq) <= 1
+    }
+
+
+def _squares_between(a: chess.Square, b: chess.Square) -> list[chess.Square]:
+    """Squares strictly between ``a`` and ``b`` on a rank/file/diagonal."""
+    f1, r1 = chess.square_file(a), chess.square_rank(a)
+    f2, r2 = chess.square_file(b), chess.square_rank(b)
+    if not (f1 == f2 or r1 == r2 or abs(f1 - f2) == abs(r1 - r2)):
+        return []
+    df = (f2 > f1) - (f2 < f1)
+    dr = (r2 > r1) - (r2 < r1)
+    out: list[chess.Square] = []
+    f, r = f1 + df, r1 + dr
+    while (f, r) != (f2, r2):
+        out.append(chess.square(f, r))
+        f, r = f + df, r + dr
+    return out
+
+
+def _capture_see_at_least(
+    board: chess.Board, target: chess.Square, attacker_color: chess.Color, minimum: int
+) -> tuple[chess.Square, int] | None:
+    """Best legal capture of ``target`` by ``attacker_color`` with SEE >=
+    ``minimum``: (attacker square, SEE), or None."""
+    probe = board.copy(stack=False)
+    probe.turn = attacker_color
+    best: tuple[chess.Square, int] | None = None
+    for attacker in board.attackers(attacker_color, target):
+        move = _capture_move(board, attacker, target)
+        if not probe.is_legal(move):
+            continue
+        see = _see(probe, move)
+        if see >= minimum and (best is None or see > best[1]):
+            best = (attacker, see)
+    return best
+
+
+def _tag_missed_development(
+    board_before: chess.Board,
+    user_move: chess.Move,
+    board_after: chess.Board,
+    best_move: chess.Move | None,
+    board_after_best: chess.Board | None,
+    played_san: str | None,
+    best_san: str | None,
+) -> str | None:
+    """Opening: the best move developed a minor piece; the played move
+    did not develop anything."""
+    if best_move is None or board_after_best is None:
+        return None
+    if board_before.fullmove_number > DEVELOPMENT_MOVE_LIMIT:
+        return None
+    if board_before.is_capture(user_move):
+        return None
+    user = board_before.turn
+    undev_before = _undeveloped_minors(board_before, user)
+    if undev_before == 0:
+        return None
+    if _undeveloped_minors(board_after_best, user) >= undev_before:
+        return None
+    if _undeveloped_minors(board_after, user) < undev_before:
+        return None  # the played move developed too
+    piece = board_before.piece_at(best_move.from_square)
+    if piece is None or piece.piece_type not in (chess.KNIGHT, chess.BISHOP):
+        return None
+    return (
+        f"Best was {best_san}, developing the "
+        f"{chess.piece_name(piece.piece_type)} from "
+        f"{chess.square_name(best_move.from_square)} to "
+        f"{chess.square_name(best_move.to_square)} — one of "
+        f"{undev_before} minor pieces still at home. Your {played_san} "
+        f"moved something else while the piece sat undeveloped."
+    )
+
+
+def _tag_missed_exchange(
+    board_before: chess.Board,
+    user_move: chess.Move,
+    best_move: chess.Move | None,
+    played_san: str | None,
+    best_san: str | None,
+) -> str | None:
+    """The best move captured on a central square at no material cost
+    (SEE >= 0); the played move did not make that capture."""
+    if best_move is None:
+        return None
+    if not board_before.is_capture(best_move):
+        return None
+    if best_move.to_square not in CENTRAL_SQUARES:
+        return None
+    if _see(board_before, best_move) < 0:
+        return None
+    if board_before.is_capture(user_move) and user_move.to_square == best_move.to_square:
+        return None
+    cap_sq = _captured_square(board_before, best_move)
+    victim = board_before.piece_at(cap_sq) if cap_sq is not None else None
+    if victim is None:
+        return None
+    return (
+        f"Best was {best_san}, taking the "
+        f"{chess.piece_name(victim.piece_type)} on "
+        f"{chess.square_name(cap_sq)} in the centre at no material cost. "
+        f"Your {played_san} left that central piece standing."
+    )
+
+
+def _tag_missed_discovery(
+    board_before: chess.Board,
+    user_move: chess.Move,
+    board_after: chess.Board,
+    best_move: chess.Move | None,
+    board_after_best: chess.Board | None,
+    played_san: str | None,
+    best_san: str | None,
+) -> str | None:
+    """The best move vacated a square, opening a friendly slider's line
+    onto an enemy piece or a square next to the enemy king; the played
+    move did not open that line."""
+    if best_move is None or board_after_best is None:
+        return None
+    user = board_before.turn
+    opp = not user
+    vicinity = _king_vicinity(board_after_best, opp)
+    vacated = best_move.from_square
+    for target in chess.SQUARES:
+        victim = board_after_best.piece_at(target)
+        is_valuable = (
+            victim is not None
+            and victim.color == opp
+            and PIECE_VALUES[victim.piece_type] >= MINOR_PIECE_CP
+        )
+        if not is_valuable and target not in vicinity:
+            continue
+        if board_before.is_attacked_by(user, target):
+            continue  # already attacked before: not a discovery
+        if board_after.is_attacked_by(user, target):
+            continue  # the played move opens it too
+        for attacker in board_after_best.attackers(user, target):
+            if attacker == best_move.to_square:
+                continue  # the moved piece itself: not a discovery
+            piece = board_after_best.piece_at(attacker)
+            if piece is None or piece.piece_type not in (
+                chess.BISHOP,
+                chess.ROOK,
+                chess.QUEEN,
+            ):
+                continue
+            if vacated not in _squares_between(attacker, target):
+                continue
+            target_label = (
+                f"the {chess.piece_name(victim.piece_type)} on "  # type: ignore[union-attr]
+                f"{chess.square_name(target)}"
+                if is_valuable
+                else f"{chess.square_name(target)}, right next to the enemy king"
+            )
+            return (
+                f"Best was {best_san}: moving off "
+                f"{chess.square_name(vacated)} opens the "
+                f"{chess.piece_name(piece.piece_type)} on "
+                f"{chess.square_name(attacker)}'s line onto {target_label}. "
+                f"Your {played_san} missed the discovered attack."
+            )
+    return None
+
+
+def _tag_missed_retreat(
+    board_before: chess.Board,
+    user_move: chess.Move,
+    board_after: chess.Board,
+    best_move: chess.Move | None,
+    board_after_best: chess.Board | None,
+    played_san: str | None,
+    best_san: str | None,
+) -> str | None:
+    """A piece was under attack (an enemy capture wins or trades even)
+    and the best move carried it to a safe square; the played move left
+    it under fire."""
+    if best_move is None or board_after_best is None:
+        return None
+    user = board_before.turn
+    opp = not user
+    piece = board_before.piece_at(best_move.from_square)
+    if piece is None or piece.piece_type in (chess.PAWN, chess.KING):
+        return None
+    threat = _capture_see_at_least(board_before, best_move.from_square, opp, 0)
+    if threat is None:
+        return None
+    if _capture_see_at_least(board_after_best, best_move.to_square, opp, 0) is not None:
+        return None  # the best move doesn't actually reach safety
+    # Where is that piece after the played move? Same square if untouched,
+    # its destination if the played move moved it.
+    location = (
+        user_move.to_square
+        if user_move.from_square == best_move.from_square
+        else best_move.from_square
+    )
+    if board_after.piece_at(location) is None:
+        return None
+    if _capture_see_at_least(board_after, location, opp, 0) is None:
+        return None  # the played move got it out of danger too
+    attacker_sq, see = threat
+    attacker = board_before.piece_at(attacker_sq)
+    attacker_label = (
+        f"the {chess.piece_name(attacker.piece_type)} "
+        f"on {chess.square_name(attacker_sq)}"
+        if attacker is not None
+        else "an enemy piece"
+    )
+    return (
+        f"Your {chess.piece_name(piece.piece_type)} on "
+        f"{chess.square_name(best_move.from_square)} was under fire from "
+        f"{attacker_label} (SEE {see:+d}cp for the capture). Best was "
+        f"{best_san}, carrying it to safety on "
+        f"{chess.square_name(best_move.to_square)}. Your {played_san} "
+        f"left it under fire."
+    )
+
+
+def _tag_weakened_defense(
+    board_before: chess.Board,
+    user_move: chess.Move,
+    board_after: chess.Board,
+    best_move: chess.Move | None,
+    board_after_best: chess.Board | None,
+    played_san: str | None,
+    best_san: str | None,
+) -> str | None:
+    """The move carried away a defender of an attacked piece, dropping
+    it to a single defender, while the best move kept the defense."""
+    if best_move is None or board_after_best is None:
+        return None
+    user = board_before.turn
+    opp = not user
+    for square in chess.SQUARES:
+        piece = board_before.piece_at(square)
+        if piece is None or piece.color != user or piece.piece_type == chess.KING:
+            continue
+        if square == user_move.from_square or square == best_move.from_square:
+            continue
+        if not board_before.is_attacked_by(opp, square):
+            continue
+        if user_move.from_square not in board_before.attackers(user, square):
+            continue  # the moved piece was not a defender of this piece
+        # The piece must still sit on the same square in both outcomes.
+        for board in (board_after, board_after_best):
+            occupant = board.piece_at(square)
+            if (
+                occupant is None
+                or occupant.color != user
+                or occupant.piece_type != piece.piece_type
+            ):
+                break
+        else:
+            defenders_before = len(board_before.attackers(user, square))
+            defenders_after = len(board_after.attackers(user, square))
+            defenders_best = len(board_after_best.attackers(user, square))
+            if defenders_after < defenders_before and defenders_after <= 1:
+                if defenders_best >= defenders_before:
+                    attackers = board_before.attackers(opp, square)
+                    attacker_sq = next(iter(attackers), None)
+                    attacker = (
+                        board_before.piece_at(attacker_sq)
+                        if attacker_sq is not None
+                        else None
+                    )
+                    attacker_label = (
+                        f"the {chess.piece_name(attacker.piece_type)} "
+                        f"on {chess.square_name(attacker_sq)}"
+                        if attacker is not None and attacker_sq is not None
+                        else "an enemy piece"
+                    )
+                    return (
+                        f"Your {played_san} carried away a defender of the "
+                        f"{chess.piece_name(piece.piece_type)} on "
+                        f"{chess.square_name(square)}, dropping it from "
+                        f"{defenders_before} defenders to {defenders_after} "
+                        f"while {attacker_label} attacks it. Best was "
+                        f"{best_san}, which kept the defense."
+                    )
+    return None
+
+
+def _reply_threats(
+    board_after: chess.Board, user: chess.Color
+) -> list[tuple[chess.Move, chess.Square | None, int]]:
+    """Opponent replies that create a concrete threat: after the reply, a
+    user piece can be profitably captured (SEE > 0) by the replying piece,
+    or the opponent threatens mate in one. Returns (reply, victim, SEE);
+    victim is None for a mate threat."""
+    opp = not user
+    attacked_before = {
+        sq
+        for sq in chess.SQUARES
+        if (p := board_after.piece_at(sq)) is not None
+        and p.color == user
+        and board_after.is_attacked_by(opp, sq)
+    }
+    out: list[tuple[chess.Move, chess.Square | None, int]] = []
+    for reply in board_after.legal_moves:
+        probe = board_after.copy(stack=False)
+        probe.push(reply)
+        if _has_mate_in_one(probe, opp):
+            out.append((reply, None, 0))
+            continue
+        if not board_after.is_capture(reply) and not board_after.gives_check(reply):
+            attacked_after = {
+                sq
+                for sq in chess.SQUARES
+                if (p := probe.piece_at(sq)) is not None
+                and p.color == user
+                and probe.is_attacked_by(opp, sq)
+            }
+            if not (attacked_after - attacked_before):
+                continue  # quiet reply, no new attack: cannot create a threat
+        losing = _losing_pieces(probe, user)
+        for victim, (_, see) in losing.items():
+            if reply.to_square in probe.attackers(opp, victim):
+                out.append((reply, victim, see))
+                break
+    return out
+
+
+def _tag_allowed_counterplay(
+    board_before: chess.Board,
+    user_move: chess.Move,
+    board_after: chess.Board,
+    best_move: chess.Move | None,
+    board_after_best: chess.Board | None,
+    played_san: str | None,
+    best_san: str | None,
+) -> str | None:
+    """The move allowed a concrete reply that wins material or threatens
+    mate, and no such reply exists after the best move."""
+    if best_move is None or board_after_best is None:
+        return None
+    user = board_before.turn
+    # Immediate mate: a reply that IS checkmate (e.g. Qh4# after g4).
+    # This is checked first and named directly: _reply_threats only sees
+    # threats that survive a reply, so without this branch it would name
+    # an arbitrary quiet move after which the mate threat persists.
+    for reply in board_after.legal_moves:
+        probe = board_after.copy(stack=False)
+        probe.push(reply)
+        if not probe.is_checkmate():
+            continue
+        for best_reply in board_after_best.legal_moves:
+            best_probe = board_after_best.copy(stack=False)
+            best_probe.push(best_reply)
+            if best_probe.is_checkmate():
+                return None  # the best move allows mate in one too
+        reply_san = _san(board_after, reply.uci())
+        return (
+            f"Your {played_san} allowed {reply_san}, mate in one. "
+            f"Best was {best_san}, which prevents it."
+        )
+    threats = _reply_threats(board_after, user)
+    if not threats:
+        return None
+    if _reply_threats(board_after_best, user):
+        return None  # the threat exists after the best move too
+    reply, victim, see = threats[0]
+    reply_san = _san(board_after, reply.uci())
+    if victim is None:
+        return (
+            f"Your {played_san} allowed {reply_san}, after which mate in "
+            f"one follows. Best was {best_san}, which prevents that idea."
+        )
+    return (
+        f"Your {played_san} allowed {reply_san}, after which the "
+        f"{_piece_label(board_after, victim)} hangs and can be won "
+        f"({see}cp of material). Best was {best_san}, which prevents "
+        f"that idea."
+    )
+
+
+def _tag_passive_piece(
+    board_before: chess.Board,
+    user_move: chess.Move,
+    board_after: chess.Board,
+    best_move: chess.Move | None,
+    board_after_best: chess.Board | None,
+    played_san: str | None,
+    best_san: str | None,
+) -> str | None:
+    """The move cut the moved piece's mobility sharply, or retreated it,
+    while the best move put a piece on an active square."""
+    if best_move is None or board_after_best is None:
+        return None
+    user = board_before.turn
+    piece = board_before.piece_at(user_move.from_square)
+    if piece is None or piece.piece_type in (chess.PAWN, chess.KING):
+        return None
+    mob_before = _piece_mobility(board_before, user_move.from_square)
+    mob_played = _piece_mobility(board_after, user_move.to_square)
+    mob_best = _piece_mobility(board_after_best, best_move.to_square)
+    from_rank = chess.square_rank(user_move.from_square)
+    to_rank = chess.square_rank(user_move.to_square)
+    is_retreat = (to_rank < from_rank) if user == chess.WHITE else (to_rank > from_rank)
+    best_from_rank = chess.square_rank(best_move.from_square)
+    best_to_rank = chess.square_rank(best_move.to_square)
+    best_advances = (
+        (best_to_rank > best_from_rank)
+        if user == chess.WHITE
+        else (best_to_rank < best_from_rank)
+    )
+    label = (
+        f"the {chess.piece_name(piece.piece_type)} from "
+        f"{chess.square_name(user_move.from_square)}"
+    )
+    if mob_before - mob_played >= 3 and mob_best >= mob_played + 3 and mob_best >= 6:
+        return (
+            f"Your {played_san} stranded {label}: it went from "
+            f"{mob_before} squares to {mob_played}. Best was {best_san}, "
+            f"putting a piece on {mob_best} squares instead."
+        )
+    if is_retreat and mob_before - mob_played >= 1 and best_advances and mob_best >= 5:
+        return (
+            f"Your {played_san} retreated {label} to "
+            f"{chess.square_name(user_move.to_square)} "
+            f"({mob_before} squares down to {mob_played}). Best was "
+            f"{best_san}, bringing a piece forward to an active square "
+            f"({mob_best} squares)."
+        )
+    return None
+
+
+def _tag_endgame_technique(
+    board_before: chess.Board,
+    user_move: chess.Move,
+    board_after: chess.Board,
+    best_move: chess.Move | None,
+    board_after_best: chess.Board | None,
+    played_san: str | None,
+    best_san: str | None,
+) -> str | None:
+    """Endgame: the best move was a forcing check supporting a pawn on
+    the 7th rank, or a king activation gaining 3+ squares of mobility,
+    and the played move did neither."""
+    if best_move is None or board_after_best is None:
+        return None
+    if board_before.fullmove_number <= 30:
+        return None
+    user = board_before.turn
+    # (a) Forcing check while a pawn stands on the 7th rank.
+    seventh_rank = 6 if user == chess.WHITE else 1
+    promo_pawns = [
+        sq
+        for sq in chess.SQUARES
+        if (p := board_before.piece_at(sq)) is not None
+        and p.color == user
+        and p.piece_type == chess.PAWN
+        and chess.square_rank(sq) == seventh_rank
+    ]
+    if (
+        promo_pawns
+        and board_after_best.is_check()
+        and not board_after.is_check()
+    ):
+        return (
+            f"Best was {best_san}, a check that gains the tempo to queen "
+            f"the pawn on {chess.square_name(promo_pawns[0])}. Your "
+            f"{played_san} is not a check and lets the opponent off the hook."
+        )
+    # (b) King activation: the best move centralizes/activates the king.
+    best_piece = board_before.piece_at(best_move.from_square)
+    played_piece = board_before.piece_at(user_move.from_square)
+    if (
+        best_piece is not None
+        and best_piece.piece_type == chess.KING
+        and played_piece is not None
+        and played_piece.piece_type != chess.KING
+    ):
+        king_before = board_before.king(user)
+        king_best = board_after_best.king(user)
+        if king_before is not None and king_best is not None:
+            mob_before = _piece_mobility(board_before, king_before)
+            mob_best = _piece_mobility(board_after_best, king_best)
+            if mob_best - mob_before >= 3 and mob_best >= 7:
+                return (
+                    f"Best was {best_san}, activating the king from "
+                    f"{mob_before} squares to {mob_best} — in the endgame "
+                    f"the king is a fighting piece. Your {played_san} left "
+                    f"it out of the game."
+                )
+    return None
+
+
+# ---------------------------------------------------------------------------
 # fallback explainer: concrete delta narrative when no tag fires
 # ---------------------------------------------------------------------------
 
@@ -1038,6 +1718,23 @@ def _fallback_explain(
     user = board_before.turn
     parts: list[str] = []
 
+    if best_move is not None and user_move == best_move:
+        # The played move IS the engine's best move: the eval drop is
+        # search instability between the two positions, not a mistake.
+        # (Seen in the wild: a depth-13 "blunder" whose played and best
+        # moves are identical.) Say so plainly instead of inventing a flaw.
+        if eval_before_cp is not None and eval_after_cp is not None:
+            cp_loss = eval_before_cp - eval_after_cp
+            return (
+                f"Your {played_san} was the engine's best move — the "
+                f"{cp_loss}cp drop from {_fmt_eval(eval_before_cp)} to "
+                f"{_fmt_eval(eval_after_cp)} is search instability between "
+                f"the two positions, not a mistake. Nothing to fix here."
+            )
+        return (
+            f"Your {played_san} was the engine's best move — nothing to "
+            f"fix here."
+        )
     if eval_before_cp is not None and eval_after_cp is not None:
         cp_loss = eval_before_cp - eval_after_cp
         parts.append(
@@ -1132,6 +1829,10 @@ def classify_move(
     played_san = _san(board_before, user_move_uci)
     best_san = _san(board_before, best_move_uci) if best_move is not None else None
     reply_san = _san(board_after, reply_uci) if reply is not None else None
+    board_after_best: chess.Board | None = None
+    if best_move is not None:
+        board_after_best = board_before.copy(stack=False)
+        board_after_best.push(best_move)
 
     explanations: dict[str, str] = {}
 
@@ -1145,7 +1846,7 @@ def classify_move(
     if found:
         explanations["abandoned_defender"] = found
 
-    found = _tag_missed_tactic(board_before, best_move, played_san, best_san)
+    found = _tag_missed_tactic(board_before, board_after, best_move, played_san, best_san)
     if found:
         explanations["missed_tactic"] = found
 
@@ -1179,6 +1880,61 @@ def classify_move(
     found = _tag_king_safety(board_before, user_move, board_after, played_san)
     if found:
         explanations["king_safety"] = found
+
+    found = _tag_missed_development(
+        board_before, user_move, board_after, best_move, board_after_best,
+        played_san, best_san,
+    )
+    if found:
+        explanations["missed_development"] = found
+
+    found = _tag_missed_exchange(
+        board_before, user_move, best_move, played_san, best_san
+    )
+    if found:
+        explanations["missed_exchange"] = found
+
+    found = _tag_missed_discovery(
+        board_before, user_move, board_after, best_move, board_after_best,
+        played_san, best_san,
+    )
+    if found:
+        explanations["missed_discovery"] = found
+
+    found = _tag_missed_retreat(
+        board_before, user_move, board_after, best_move, board_after_best,
+        played_san, best_san,
+    )
+    if found:
+        explanations["missed_retreat"] = found
+
+    found = _tag_weakened_defense(
+        board_before, user_move, board_after, best_move, board_after_best,
+        played_san, best_san,
+    )
+    if found:
+        explanations["weakened_defense"] = found
+
+    found = _tag_allowed_counterplay(
+        board_before, user_move, board_after, best_move, board_after_best,
+        played_san, best_san,
+    )
+    if found:
+        explanations["allowed_counterplay"] = found
+
+    found = _tag_passive_piece(
+        board_before, user_move, board_after, best_move, board_after_best,
+        played_san, best_san,
+    )
+    if found:
+        explanations["passive_piece"] = found
+
+    found = _tag_endgame_technique(
+        board_before, user_move, board_after, best_move, board_after_best,
+        played_san, best_san,
+    )
+    if found:
+        explanations["endgame_technique"] = found
 
     found = _tag_time_scramble(clock_seconds, move_time_seconds)
     if found:

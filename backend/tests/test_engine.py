@@ -220,3 +220,67 @@ def test_analyze_game_cloud_only_within_max_ply(tmp_path, stockfish_path):
         [p for p in range(1, 40, 2) if p <= cap]
     )
     assert calls["n"] == expected_calls
+
+
+# ---------------------------------------------------------------------------
+# pass 2: deep re-analysis of blunder positions (v3)
+# ---------------------------------------------------------------------------
+
+DEEP_KEYS = ("deep_best_move", "deep_eval", "pv_san")
+
+
+def test_deep_pass_only_blunders_get_deep_fields(stockfish_path):
+    # Fool's mate: f3 is a mistake (137cp), g4 is the blunder (mate).
+    with EngineAnalyzer(stockfish_path, depth=8, cloud_enabled=False) as analyzer:
+        analysis = analyzer.analyze_game(_game())
+    by_san = {r["san"]: r for r in analysis["moves"]}
+    assert by_san["f3"]["severity"] == "mistake"
+    for key in DEEP_KEYS:
+        assert key not in by_san["f3"]
+    assert by_san["g4"]["severity"] == "blunder"
+    for key in DEEP_KEYS:
+        assert key in by_san["g4"]
+
+
+def test_deep_pass_fields_are_consistent(stockfish_path):
+    with EngineAnalyzer(stockfish_path, depth=8, cloud_enabled=False) as analyzer:
+        analysis = analyzer.analyze_game(_game())
+    blunder = next(r for r in analysis["moves"] if r["severity"] == "blunder")
+    board = chess.Board(blunder["fen_before"])
+    deep_move = chess.Move.from_uci(blunder["deep_best_move"])
+    assert deep_move in board.legal_moves
+    assert isinstance(blunder["deep_eval"], int)
+    pv_san = blunder["pv_san"]
+    assert 1 <= len(pv_san) <= 6
+    assert pv_san[0] == board.san(deep_move)
+    # The whole PV must replay legally from the position.
+    probe = board.copy()
+    for san in pv_san:
+        probe.push_san(san)
+
+
+def test_deep_pass_skips_without_engine(stockfish_path):
+    analyzer = EngineAnalyzer(stockfish_path, depth=8, cloud_enabled=False)
+    board = chess.Board()
+    assert analyzer._deep_analyze(board) == (None, None, [])
+    record = {
+        "severity": "blunder",
+        "fen_before": board.fen(),
+        "eval_before_cp": 0,
+    }
+    analyzer._deep_pass([record], chess.WHITE)
+    for key in DEEP_KEYS:
+        assert key not in record
+
+
+def test_deep_pass_leaves_pass1_fields_untouched(stockfish_path):
+    with EngineAnalyzer(stockfish_path, depth=8, cloud_enabled=False) as analyzer:
+        analysis = analyzer.analyze_game(_game())
+        records = analysis["moves"]
+        before = [
+            {k: v for k, v in r.items() if k not in DEEP_KEYS} for r in records
+        ]
+        # Re-running pass 2 on the same records must not touch pass-1 data.
+        analyzer._deep_pass(records, chess.WHITE)
+    after = [{k: v for k, v in r.items() if k not in DEEP_KEYS} for r in records]
+    assert after == before

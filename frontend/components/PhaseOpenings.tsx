@@ -14,6 +14,9 @@ const PHASES: { key: keyof PlayerDNA["phase_mistakes"]; label: string; moves: st
   { key: "endgame", label: "Endgame", moves: "Move 31+" },
 ];
 
+const CARD =
+  "rounded-xl border border-stone-200 bg-white p-5 sm:p-6 dark:border-zinc-800 dark:bg-zinc-900/50";
+
 export default function PhaseOpenings({ result }: PhaseOpeningsProps) {
   const totalPhase = PHASES.reduce((sum, p) => sum + result.phase_mistakes[p.key], 0);
   const maxPhase = Math.max(1, ...PHASES.map((p) => result.phase_mistakes[p.key]));
@@ -25,19 +28,19 @@ export default function PhaseOpenings({ result }: PhaseOpeningsProps) {
   return (
     <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
       {/* Phase distribution */}
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5 sm:p-6">
+      <section className={CARD}>
         <div className="flex items-center gap-2">
-          <Clock3 className="h-4 w-4 text-zinc-400" />
-          <h2 className="font-display text-lg font-bold text-zinc-50">
+          <Clock3 className="h-4 w-4 text-stone-500 dark:text-zinc-400" />
+          <h2 className="font-display text-lg font-bold text-stone-900 dark:text-zinc-50">
             Where points leak
           </h2>
         </div>
-        <p className="mt-1 text-sm text-zinc-500">
+        <p className="mt-1 text-sm text-stone-500 dark:text-zinc-500">
           Flagged mistakes by game phase.
         </p>
 
         {totalPhase === 0 ? (
-          <p className="mt-6 rounded-lg border border-dashed border-zinc-800 px-4 py-6 text-center text-sm text-zinc-500">
+          <p className="mt-6 rounded-lg border border-dashed border-stone-300 px-4 py-6 text-center text-sm text-stone-500 dark:border-zinc-800 dark:text-zinc-500">
             No flagged mistakes in this sample.
           </p>
         ) : (
@@ -49,20 +52,20 @@ export default function PhaseOpenings({ result }: PhaseOpeningsProps) {
               return (
                 <div key={phase.key}>
                   <div className="flex items-baseline justify-between">
-                    <span className="text-sm font-semibold text-zinc-100">
+                    <span className="text-sm font-semibold text-stone-900 dark:text-zinc-100">
                       {phase.label}{" "}
-                      <span className="font-mono text-xs font-normal text-zinc-500">
+                      <span className="font-mono text-xs font-normal text-stone-400 dark:text-zinc-500">
                         {phase.moves}
                       </span>
                     </span>
-                    <span className="font-mono text-sm text-zinc-400 tabular-nums">
+                    <span className="font-mono text-sm text-stone-500 tabular-nums dark:text-zinc-400">
                       {count} · {formatPct(share, 1)}
                     </span>
                   </div>
-                  <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-zinc-800">
+                  <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-stone-200 dark:bg-zinc-800">
                     <div
                       className={`h-full rounded-full transition-all duration-700 ${
-                        isWorst ? "bg-rose-400" : "bg-zinc-500"
+                        isWorst ? "bg-rose-400" : "bg-stone-400 dark:bg-zinc-500"
                       }`}
                       style={{ width: `${(count / maxPhase) * 100}%` }}
                     />
@@ -73,10 +76,10 @@ export default function PhaseOpenings({ result }: PhaseOpeningsProps) {
           </div>
         )}
 
-        <div className="mt-6 border-t border-zinc-800/80 pt-4">
-          <p className="font-mono text-xs leading-relaxed text-zinc-500 tabular-nums">
+        <div className="mt-6 border-t border-stone-200 pt-4 dark:border-zinc-800/80">
+          <p className="font-mono text-xs leading-relaxed text-stone-500 tabular-nums dark:text-zinc-500">
             Avg. centipawn loss{" "}
-            <span className="font-semibold text-zinc-300">
+            <span className="font-semibold text-stone-700 dark:text-zinc-300">
               {result.avg_centipawn_loss.toFixed(1)}
             </span>{" "}
             · {result.accuracy.blunders} blunders ·{" "}
@@ -88,26 +91,26 @@ export default function PhaseOpenings({ result }: PhaseOpeningsProps) {
       </section>
 
       {/* Opening leaks */}
-      <section className="rounded-xl border border-zinc-800 bg-zinc-900/50 p-5 sm:p-6">
+      <section className={CARD}>
         <div className="flex items-center gap-2">
-          <BookOpen className="h-4 w-4 text-zinc-400" />
-          <h2 className="font-display text-lg font-bold text-zinc-50">
+          <BookOpen className="h-4 w-4 text-stone-500 dark:text-zinc-400" />
+          <h2 className="font-display text-lg font-bold text-stone-900 dark:text-zinc-50">
             Lowest-scoring openings
           </h2>
         </div>
-        <p className="mt-1 text-sm text-zinc-500">
+        <p className="mt-1 text-sm text-stone-500 dark:text-zinc-500">
           Your worst results by ECO code in this sample.
         </p>
 
         {worstOpenings.length === 0 ? (
-          <p className="mt-6 rounded-lg border border-dashed border-zinc-800 px-4 py-6 text-center text-sm text-zinc-500">
+          <p className="mt-6 rounded-lg border border-dashed border-stone-300 px-4 py-6 text-center text-sm text-stone-500 dark:border-zinc-800 dark:text-zinc-500">
             No opening data available for these games.
           </p>
         ) : (
           <div className="mt-4 overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-zinc-800 text-left text-xs tracking-wide text-zinc-500 uppercase">
+                <tr className="border-b border-stone-200 text-left text-xs tracking-wide text-stone-500 uppercase dark:border-zinc-800 dark:text-zinc-500">
                   <th className="py-2 pr-3 font-medium">ECO</th>
                   <th className="py-2 pr-3 font-medium">Opening</th>
                   <th className="py-2 pr-3 text-right font-medium">G</th>
@@ -119,9 +122,9 @@ export default function PhaseOpenings({ result }: PhaseOpeningsProps) {
                 {worstOpenings.map((op: OpeningStat, i) => (
                   <tr
                     key={`${op.eco}-${op.name}`}
-                    className="border-b border-zinc-800/60 text-zinc-300 last:border-0"
+                    className="border-b border-stone-100 text-stone-700 last:border-0 dark:border-zinc-800/60 dark:text-zinc-300"
                   >
-                    <td className="py-2.5 pr-3 font-mono text-xs text-zinc-400">
+                    <td className="py-2.5 pr-3 font-mono text-xs text-stone-500 dark:text-zinc-400">
                       {op.eco}
                     </td>
                     <td className="py-2.5 pr-3">
@@ -135,7 +138,9 @@ export default function PhaseOpenings({ result }: PhaseOpeningsProps) {
                     </td>
                     <td
                       className={`py-2.5 text-right font-mono font-semibold tabular-nums ${
-                        i === 0 ? "text-rose-300" : "text-zinc-200"
+                        i === 0
+                          ? "text-rose-600 dark:text-rose-300"
+                          : "text-stone-800 dark:text-zinc-200"
                       }`}
                     >
                       {formatPct(op.score_pct, 1)}

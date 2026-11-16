@@ -68,7 +68,12 @@ class Settings:
     # Cloud eval is only consulted for early positions (half-moves played):
     # the Lichess database is deep in openings and thin in unique
     # middlegame/endgame positions, so gating keeps the HTTP cost bounded
-    # while capturing nearly all cache hits.
+    # while capturing nearly all cache hits. Measured 2026-11-16
+    # (scripts/probe_cloud_hit_rate.py, 5 hikaru blitz games, 625
+    # positions, fresh cache): ply 0-24 hit rate 35.8%, ply 25+ hit
+    # rate 0.0% (0/505) — raising the cap buys nothing. chessdb.cn was
+    # also probed the same day and rejected: 0/20 middlegame hits, no
+    # eval/depth in responses, p50 latency 726ms.
     CLOUD_EVAL_MAX_PLY: int = int(os.getenv("CLOUD_EVAL_MAX_PLY", "24"))
     CORS_ORIGINS: list[str] = [
         origin.strip()

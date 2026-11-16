@@ -55,6 +55,54 @@ export interface HealthResponse {
   stockfish_path: string | null;
 }
 
+/** POST /api/position contract (v3 backend). Evals are centipawns from
+ *  White's perspective; mates are encoded as ±10000 (see MATE_CP). When
+ *  `move_uci` is given, `played` carries the classifier's verdict on that
+ *  move; otherwise `played` is null and the response describes the
+ *  position itself. */
+export interface PositionRequest {
+  fen: string;
+  move_uci?: string | null;
+  depth?: number;
+}
+
+export interface PlayedMoveFeedback {
+  move_uci: string;
+  move_san: string;
+  eval_after_cp_white: number;
+  cp_loss_user: number;
+  win_prob_drop: number;
+  tags: string[];
+  primary: string | null;
+  explanations: string[];
+}
+
+export interface PositionResponse {
+  fen: string;
+  turn: "w" | "b";
+  eval_cp_white: number;
+  best_move_uci: string;
+  best_move_san: string;
+  pv_san: string[];
+  eval_source: string;
+  played: PlayedMoveFeedback | null;
+}
+
+/** Optional per-ECO loss breakdown (v3 backend). Shape is defensive: the
+ *  recommendations builder reads it only when it looks like the expected
+ *  array, and always falls back to the openings table. */
+export interface EcoLossRow {
+  eco?: string;
+  name?: string;
+  eco_name?: string;
+  games?: number;
+  losses?: number;
+  played?: number;
+  lost?: number;
+  loss_rate?: number;
+  cp_lost?: number;
+}
+
 export interface ColorRecord {
   wins: number;
   losses: number;
@@ -174,6 +222,11 @@ export interface PlayerDNA {
   /** Personalized practice plan (v2 contract). Absent on older backends —
    *  the practice section hides itself. */
   practice_plan?: PracticeEntry[];
+  /** Where losses concentrate, by ECO (v3 contract, optional). Absent on
+   *  older backends — recommendations fall back to the openings table. */
+  loss_breakdown?: {
+    by_eco?: EcoLossRow[];
+  };
 }
 
 /** Coach settings entered in the UI drawer (stored in browser localStorage only). */

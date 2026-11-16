@@ -29,12 +29,17 @@ export const metadata: Metadata = {
     "A personal chess weakness diagnostic. Enter your Chess.com or Lichess username and get a deep breakdown of the tactical blind spots leaking your rating points.",
 };
 
+/** Runs before first paint: restores the saved theme (default light) so
+ *  there is no dark flash. The toggle lives in components/ThemeToggle. */
+const THEME_INIT_SCRIPT = `(function(){try{var t=localStorage.getItem('chessdna.theme');if(t==='dark'){document.documentElement.classList.add('dark');}}catch(e){}})();`;
+
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" suppressHydrationWarning>
       <body
-        className={`${jakarta.variable} ${inter.variable} ${jetbrains.variable} min-h-screen bg-[#0a0a0b] font-sans text-zinc-100 antialiased`}
+        className={`${jakarta.variable} ${inter.variable} ${jetbrains.variable} min-h-screen bg-[#faf7f0] font-sans text-stone-900 antialiased dark:bg-[#0a0a0b] dark:text-zinc-100`}
       >
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
         {children}
       </body>
     </html>

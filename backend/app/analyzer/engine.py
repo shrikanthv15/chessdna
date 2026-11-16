@@ -27,6 +27,14 @@ database (disk-cached, see services/cloud_eval.py) before local Stockfish
 is consulted; later positions go straight to Stockfish. Every per-move
 record carries ``eval_source`` ("cloud" or "local") so the UI can be
 honest about where each number came from.
+
+Two-pass analysis (v3): pass 1 scans every user move at the requested
+depth (unchanged — flagging thresholds use pass-1 numbers only). Pass 2
+re-analyzes ONLY blunder-level moves at depth+6 (capped at 20) with
+MultiPV=3, storing ``deep_best_move`` (UCI), ``deep_eval`` (user
+perspective, mates ±10000) and ``pv_san`` (best line, up to 6 plies) on
+the record. Pass 2 is local-Stockfish only: the cloud database has no
+MultiPV/deep-line data, and the point is a deeper local look.
 """
 from __future__ import annotations
 
@@ -48,6 +56,13 @@ BLUNDER_WP_DROP = 15.0
 MISTAKE_CP = 80
 INACCURACY_CP = 40
 SEARCH_TIME_CAP_SECONDS = 10.0
+# Pass 2: blunder positions are re-searched this much deeper (capped),
+# with MultiPV=3, to give the UI a trustworthy best line. Measured
+# 2026-11-16: +6 keeps a 5-game fresh run well under 2x pass-1 time.
+DEEP_PASS_DEPTH_BONUS = 6
+DEEP_PASS_MAX_DEPTH = 20
+DEEP_PASS_MULTIPV = 3
+DEEP_PASS_PV_PLIES = 6
 
 
 def win_probability(cp: int) -> float:
@@ -153,6 +168,66 @@ class EngineAnalyzer:
         result = (cp, best, "local")
         self._eval_cache[fen] = result
         return result
+
+    # -- pass 2: deep re-analysis of blunder positions --------------------
+
+    def _deep_analyze(
+        self, board: chess.Board
+    ) -> tuple[chess.Move | None, int | None, list[str]]:
+        """Deeper MultiPV search of one position (pass 2).
+
+        Returns (best move, cp from White's perspective, PV in SAN up to
+        DEEP_PASS_PV_PLIES plies). Any failure returns (None, None, []):
+        pass 2 is additive and must never break pass-1 results.
+        """
+        if self.engine is None or board.is_game_over():
+            return None, None, []
+        depth = min(self.depth + DEEP_PASS_DEPTH_BONUS, DEEP_PASS_MAX_DEPTH)
+        limit = chess.engine.Limit(depth=depth, time=SEARCH_TIME_CAP_SECONDS)
+        try:
+            infos = self.engine.analyse(board, limit, multipv=DEEP_PASS_MULTIPV)
+        except chess.engine.EngineError:
+            return None, None, []
+        if not infos:
+            return None, None, []
+        info = infos[0]
+        try:
+            cp = info["score"].white().score(mate_score=MATE_CP)
+        except (KeyError, AttributeError):
+            return None, None, []
+        pv = info.get("pv") or []
+        best = pv[0] if pv else None
+        pv_san: list[str] = []
+        probe = board.copy(stack=False)
+        for move in pv[:DEEP_PASS_PV_PLIES]:
+            try:
+                pv_san.append(probe.san(move))
+            except ValueError:
+                break
+            probe.push(move)
+        return best, cp, pv_san
+
+    def _deep_pass(
+        self, records: list[dict[str, Any]], user_color: chess.Color
+    ) -> None:
+        """Pass 2: attach deep fields to blunder-level records in place.
+
+        Only blunders are re-searched. The classifier keeps using pass-1
+        numbers for flagging; these fields are for display (best line,
+        deeper eval) only.
+        """
+        for record in records:
+            if record["severity"] != "blunder":
+                continue
+            board = chess.Board(record["fen_before"])
+            best, cp_white, pv_san = self._deep_analyze(board)
+            if best is None or cp_white is None:
+                continue
+            record["deep_best_move"] = best.uci()
+            record["deep_eval"] = int(
+                cp_white if user_color == chess.WHITE else -cp_white
+            )
+            record["pv_san"] = pv_san
 
     # -- per-game analysis ------------------------------------------------
 
@@ -287,6 +362,10 @@ class EngineAnalyzer:
                 board.push(move)
 
             history.append((board.fen(), move))
+
+        # Pass 2: deep re-analysis of blunder positions only. Pass-1
+        # numbers (flagging, eval series) are untouched.
+        self._deep_pass(records, user_color)
 
         return ensure_game_context(
             {

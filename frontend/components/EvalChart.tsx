@@ -27,7 +27,8 @@ const MID_Y = PAD_T + PLOT_H / 2;
 
 /** Eval chart: White's perspective, clamped to ±1000cp. Click to jump the
  *  board to that ply. Blunder plies are rose dots; the cursor tracks the
- *  board position. */
+ *  board position. Grid/label/cursor colors come from CSS variables so the
+ *  chart follows the light/dark theme (see globals.css). */
 export default function EvalChart({
   series,
   currentPly,
@@ -82,13 +83,13 @@ export default function EvalChart({
         onClick={() => onSelectPly(swing.ply)}
         className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-mono text-[11px] tabular-nums transition-colors ${
           kind === "gain"
-            ? "border-emerald-500/30 bg-emerald-500/[0.07] text-emerald-300 hover:border-emerald-500/50"
-            : "border-rose-500/30 bg-rose-500/[0.07] text-rose-300 hover:border-rose-500/50"
+            ? "border-emerald-600/30 bg-emerald-600/[0.07] text-emerald-700 hover:border-emerald-600/50 dark:border-emerald-500/30 dark:bg-emerald-500/[0.07] dark:text-emerald-300 dark:hover:border-emerald-500/50"
+            : "border-rose-600/30 bg-rose-600/[0.07] text-rose-700 hover:border-rose-600/50 dark:border-rose-500/30 dark:bg-rose-500/[0.07] dark:text-rose-300 dark:hover:border-rose-500/50"
         }`}
         title={`Jump to move ${moveNumberForPly(swing.ply)}`}
       >
         {kind === "gain" ? "▲ Win was here" : "▼ Lost here"}
-        <span className="text-zinc-400">
+        <span className="text-stone-500 dark:text-zinc-400">
           move {moveNumberForPly(swing.ply)} · {signed} swing
         </span>
       </button>
@@ -97,7 +98,7 @@ export default function EvalChart({
 
   return (
     <div>
-      <p className="mb-1 text-right text-[11px] text-zinc-500">
+      <p className="mb-1 text-right text-[11px] text-stone-500 dark:text-zinc-500">
         Evaluation from White&rsquo;s perspective · click the chart to jump
       </p>
       <svg
@@ -115,14 +116,14 @@ export default function EvalChart({
               x2={W - PAD_R}
               y1={yFor(cp)}
               y2={yFor(cp)}
-              stroke="#27272a"
+              stroke="var(--chart-grid)"
               strokeWidth={cp === 0 ? 1.5 : 1}
             />
             <text
               x={PAD_L - 5}
               y={yFor(cp) + 3}
               textAnchor="end"
-              className="fill-zinc-600"
+              fill="var(--chart-label)"
               fontSize="9"
               fontFamily="monospace"
             >
@@ -130,14 +131,15 @@ export default function EvalChart({
             </text>
           </g>
         ))}
-        {/* X labels: first / middle / last move */}
+        {/* X labels: first / middle / last move. The last label is
+            end-anchored so it isn't clipped by the viewBox edge. */}
         {[0, Math.round(maxPly / 2), maxPly].map((ply) => (
           <text
             key={ply}
             x={xFor(ply)}
             y={H - 6}
-            textAnchor="middle"
-            className="fill-zinc-600"
+            textAnchor={ply === 0 ? "start" : ply === maxPly ? "end" : "middle"}
+            fill="var(--chart-label)"
             fontSize="9"
             fontFamily="monospace"
           >
@@ -152,7 +154,7 @@ export default function EvalChart({
             <path
               d={linePath}
               fill="none"
-              stroke="#34d399"
+              stroke="#10b981"
               strokeWidth={1.5}
               strokeLinejoin="round"
               strokeLinecap="round"
@@ -160,7 +162,7 @@ export default function EvalChart({
           </>
         )}
         {points.length === 1 && (
-          <circle cx={xFor(points[0].ply)} cy={yFor(points[0].cp)} r={3} fill="#34d399" />
+          <circle cx={xFor(points[0].ply)} cy={yFor(points[0].cp)} r={3} fill="#10b981" />
         )}
 
         {/* Blunder markers */}
@@ -174,7 +176,7 @@ export default function EvalChart({
               cy={yFor(cp)}
               r={4}
               fill="#fb7185"
-              stroke="#0a0a0b"
+              stroke="var(--paper)"
               strokeWidth={1.5}
             />
           );
@@ -208,7 +210,7 @@ export default function EvalChart({
           x2={xFor(currentPly)}
           y1={PAD_T}
           y2={PAD_T + PLOT_H}
-          stroke="#e4e4e7"
+          stroke="var(--chart-cursor)"
           strokeWidth={1}
           strokeOpacity={0.7}
         />
@@ -217,15 +219,15 @@ export default function EvalChart({
             cx={xFor(currentPly)}
             cy={yFor(cpAt(currentPly) as number)}
             r={3.5}
-            fill="#fafafa"
-            stroke="#0a0a0b"
+            fill="var(--paper)"
+            stroke="var(--chart-cursor)"
             strokeWidth={1.5}
           />
         )}
       </svg>
 
       <div className="mt-1.5 flex flex-wrap items-center gap-2">
-        <span className="text-[11px] text-zinc-600">
+        <span className="text-[11px] text-stone-400 dark:text-zinc-600">
           Eval, White&apos;s perspective · click the chart to jump
         </span>
         <span className="ml-auto flex flex-wrap gap-1.5">
