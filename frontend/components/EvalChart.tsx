@@ -89,7 +89,7 @@ export default function EvalChart({
       >
         {kind === "gain" ? "▲ Win was here" : "▼ Lost here"}
         <span className="text-zinc-400">
-          move {moveNumberForPly(swing.ply)} · {signed}
+          move {moveNumberForPly(swing.ply)} · {signed} swing
         </span>
       </button>
     );
@@ -97,6 +97,9 @@ export default function EvalChart({
 
   return (
     <div>
+      <p className="mb-1 text-right text-[11px] text-zinc-500">
+        Evaluation from White&rsquo;s perspective · click the chart to jump
+      </p>
       <svg
         viewBox={`0 0 ${W} ${H}`}
         className="h-auto w-full cursor-pointer select-none"

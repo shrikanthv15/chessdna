@@ -21,7 +21,7 @@ from typing import Any
 from .classifier import TAG_PRIORITY
 
 WINNING_EVAL_CP = 300
-MAX_BLUNDERS = 8
+MAX_BLUNDERS = 24
 MAX_OPENINGS = 8
 MIN_OPENING_GAMES = 2
 CPL_CAP = 1000

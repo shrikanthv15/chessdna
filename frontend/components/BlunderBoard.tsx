@@ -430,10 +430,14 @@ export default function BlunderBoard({
   const gameDate = formatGameDate(group?.gameDate);
   const ecoLabel = group?.ecoName ?? group?.eco ?? null;
 
-  // Eval readout for the current position (White's perspective).
+  // Eval readout for the current position, from the USER's perspective so
+  // it agrees with the detail panel. The series is White's perspective,
+  // so flip it when the user played Black.
   const seriesEval = hasReplay ? evalAtPly(group?.evalSeries, ply) : null;
   const readoutEval =
-    seriesEval ?? (atBlunder ? blunder.eval_before_cp : null);
+    seriesEval !== null
+      ? (blunder.player_color === "black" ? -seriesEval : seriesEval)
+      : (atBlunder ? blunder.eval_before_cp : null);
 
   // Move-list rows from SAN (clamped to the FEN list actually built).
   const sanMoves = (group?.movesSan ?? []).slice(0, totalPlies);
@@ -498,6 +502,7 @@ export default function BlunderBoard({
           {groups.map((g) => {
             const active = gameFilterKey === g.key;
             const date = formatGameDate(g.gameDate);
+            const moveCount = g.movesSan ? Math.ceil(g.movesSan.length / 2) : null;
             return (
               <button
                 key={g.key}
@@ -512,6 +517,14 @@ export default function BlunderBoard({
               >
                 vs {g.opponent}
                 {date && <span className="text-zinc-500">{date}</span>}
+                {g.result && (
+                  <span className="font-mono text-[11px] text-zinc-400">
+                    {resultLetter(g.result)}
+                  </span>
+                )}
+                {moveCount !== null && (
+                  <span className="text-zinc-500">{moveCount} moves</span>
+                )}
                 <span className="font-mono text-[11px] text-zinc-500">
                   {g.blunderIndices.length}
                 </span>
