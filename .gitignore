@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+dist/
+build/
+
+# Node / frontend
+node_modules/
+.next/
+out/
+
+# Env & secrets
+.env
+backend/.env
+*.local
+
+# Data & caches
+data/
+*.sqlite3
+*.db
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Stockfish binary (76MB, installed by scripts/setup_stockfish.sh)
+backend/bin/
