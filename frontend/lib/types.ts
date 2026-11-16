@@ -3,6 +3,8 @@
 export type Platform = "chesscom" | "lichess";
 export type TimeControl = "all" | "rapid" | "blitz" | "bullet";
 export type GameCount = 25 | 50 | 100;
+/** Game result from the analyzed user's perspective. */
+export type GameResult = "win" | "loss" | "draw";
 
 export interface AnalyzeRequest {
   platform: Platform;
@@ -89,12 +91,56 @@ export interface Blunder {
   tag: string;
   tags: string[];
   explanation: string;
-  game_url: string;
+  game_url: string | null;
   move_number: number;
   phase: string;
   clock_seconds: number | null;
   player_color: string;
   opponent: string;
+  /** Game identity + full-game replay fields (v2 contract). All optional:
+   *  an older backend omits them and the UI degrades to the v1 single-position
+   *  view. */
+  game_id?: string;
+  game_date?: string | null;
+  time_control?: string;
+  result?: GameResult;
+  eco?: string | null;
+  eco_name?: string | null;
+  moves_san?: string[];
+  moves_uci?: string[];
+  eval_series?: EvalPoint[];
+}
+
+/** One Stockfish evaluation along a game: eval in centipawns from White's
+ *  perspective at the position after `ply` half-moves (mate = ±10000). */
+export interface EvalPoint {
+  ply: number;
+  cp: number;
+}
+
+export interface PracticeDrill {
+  title: string;
+  detail: string;
+  minutes_per_day: number;
+}
+
+export interface PracticeEntry {
+  tag: string;
+  title: string;
+  why: string;
+  drills: PracticeDrill[];
+  /** FEN strings of positions to train (usually the entry's blunder FENs). */
+  positions: string[];
+}
+
+/** A practice position handed from the practice section to the replay board. */
+export interface PracticeFocus {
+  fen: string;
+  /** Engine best move in UCI, when the position resolves to a known blunder. */
+  bestMoveUci: string | null;
+  label: string;
+  /** Monotonic nonce: a new focus request even for a repeated FEN. */
+  nonce: number;
 }
 
 export interface PlayerDNA {
@@ -125,6 +171,9 @@ export interface PlayerDNA {
   };
   top_blind_spot: string;
   analyzed_at: string;
+  /** Personalized practice plan (v2 contract). Absent on older backends —
+   *  the practice section hides itself. */
+  practice_plan?: PracticeEntry[];
 }
 
 /** Coach settings entered in the UI drawer (stored in browser localStorage only). */

@@ -11,7 +11,9 @@ def _phase(move_number: int) -> str:
 
 
 def _move(severity="ok", cp_loss=0, wp_drop=0.0, move_number=5, tags=None,
-          primary="unclassified", eval_before=0, eval_after=0):
+          primary="unclassified", eval_before=0, eval_after=0,
+          fen_before="rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
+          clock_seconds=120.0):
     return {
         "move_number": move_number,
         "ply": move_number * 2,
@@ -24,8 +26,8 @@ def _move(severity="ok", cp_loss=0, wp_drop=0.0, move_number=5, tags=None,
         "win_prob_drop": wp_drop,
         "best_move_san": "d4",
         "best_move_uci": "d2d4",
-        "fen_before": "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1",
-        "clock_seconds": 120.0,
+        "fen_before": fen_before,
+        "clock_seconds": clock_seconds,
         "severity": severity,
         "tags": list(tags) if tags else [],
         "primary": primary,
@@ -188,3 +190,149 @@ def test_empty_analyses():
     assert dna["conversion"]["conversion_rate"] == 0.0
     assert dna["blunders"] == []
     assert dna["blind_spots"] == []
+
+
+# ---------------------------------------------------------------------------
+# v2: game identity + full-game context on blunders
+# ---------------------------------------------------------------------------
+
+
+def test_blunder_game_identity_and_full_context():
+    moves = [
+        _move("blunder", cp_loss=200, wp_drop=20.0, move_number=5,
+              tags=["missed_tactic"], primary="missed_tactic"),
+    ]
+    analysis = _analysis("white", "loss", "B12", "Caro-Kann", moves)
+    analysis["game"].update({
+        "game_id": "abc123",
+        "game_date": "2025-03-04",
+        "moves_san": ["e4", "e5", "Nf3"],
+        "moves_uci": ["e2e4", "e7e5", "g1f3"],
+        "eval_series": [{"ply": 0, "cp": 20}, {"ply": 1, "cp": 15}, {"ply": 2, "cp": 10}],
+    })
+    dna = _dna([analysis])
+    blunder = dna["blunders"][0]
+    assert blunder["game_id"] == "abc123"
+    assert blunder["game_date"] == "2025-03-04"
+    assert blunder["time_control"] == "blitz"
+    assert blunder["result"] == "loss"
+    assert blunder["eco"] == "B12"
+    assert blunder["eco_name"] == "Caro-Kann"
+    assert blunder["moves_san"] == ["e4", "e5", "Nf3"]
+    assert blunder["moves_uci"] == ["e2e4", "e7e5", "g1f3"]
+    assert blunder["eval_series"] == [
+        {"ply": 0, "cp": 20}, {"ply": 1, "cp": 15}, {"ply": 2, "cp": 10},
+    ]
+    # Existing fields unchanged.
+    assert blunder["opponent"] == "opponent"
+    assert blunder["game_url"] == "https://example.com/B12-loss"
+
+
+def test_blunder_context_defaults_for_old_analyses():
+    moves = [
+        _move("blunder", cp_loss=200, wp_drop=20.0, move_number=5,
+              tags=["unclassified"], primary="unclassified"),
+    ]
+    dna = _dna([_analysis("white", "loss", "B12", "Caro-Kann", moves)])
+    blunder = dna["blunders"][0]
+    assert blunder["game_id"] == ""
+    assert blunder["game_date"] is None
+    assert blunder["moves_san"] == []
+    assert blunder["moves_uci"] == []
+    assert blunder["eval_series"] == []
+
+
+def test_new_tag_labels_in_blind_spots():
+    moves = [
+        _move("blunder", cp_loss=200, wp_drop=20.0, move_number=5,
+              tags=["missed_tactic"], primary="missed_tactic"),
+        _move("blunder", cp_loss=200, wp_drop=20.0, move_number=8,
+              tags=["king_safety"], primary="king_safety"),
+    ]
+    dna = _dna([_analysis("white", "loss", "B12", "Caro-Kann", moves)])
+    by_tag = {b["tag"]: b for b in dna["blind_spots"]}
+    assert by_tag["missed_tactic"]["label"] == "Missed Tactic"
+    assert by_tag["missed_tactic"]["explanation"]
+    assert by_tag["king_safety"]["label"] == "King Safety"
+    assert by_tag["king_safety"]["explanation"]
+
+
+# ---------------------------------------------------------------------------
+# v2: practice plan
+# ---------------------------------------------------------------------------
+
+
+def test_practice_plan_top_three_excludes_unclassified():
+    moves = [
+        _move("blunder", cp_loss=200, wp_drop=20.0, move_number=5,
+              tags=["abandoned_defender"], primary="abandoned_defender"),
+        _move("blunder", cp_loss=200, wp_drop=22.0, move_number=8,
+              tags=["abandoned_defender"], primary="abandoned_defender"),
+        _move("blunder", cp_loss=200, wp_drop=19.0, move_number=12,
+              tags=["abandoned_defender"], primary="abandoned_defender"),
+        _move("blunder", cp_loss=200, wp_drop=25.0, move_number=20,
+              tags=["time_scramble_panic"], primary="time_scramble_panic",
+              clock_seconds=12.0),
+        _move("blunder", cp_loss=200, wp_drop=21.0, move_number=22,
+              tags=["time_scramble_panic"], primary="time_scramble_panic",
+              clock_seconds=300.0),
+        _move("blunder", cp_loss=200, wp_drop=18.0, move_number=25,
+              tags=["missed_tactic"], primary="missed_tactic"),
+        _move("blunder", cp_loss=200, wp_drop=17.0, move_number=28,
+              tags=["unclassified"], primary="unclassified"),
+        _move("blunder", cp_loss=200, wp_drop=16.0, move_number=30,
+              tags=["unclassified"], primary="unclassified"),
+    ]
+    dna = _dna([_analysis("white", "loss", "B12", "Caro-Kann", moves)])
+    plan = dna["practice_plan"]
+    assert [p["tag"] for p in plan] == [
+        "abandoned_defender", "time_scramble_panic", "missed_tactic",
+    ]
+    for entry in plan:
+        assert entry["title"]
+        assert entry["why"]
+        assert 2 <= len(entry["drills"]) <= 3
+        for drill in entry["drills"]:
+            assert drill["title"] and drill["detail"]
+            assert drill["minutes_per_day"] > 0
+        assert entry["positions"]
+    # Numbers tied to their data: 3 of 8 blunders, and the low-clock count.
+    assert "3 of your 8 blunders" in plan[0]["why"]
+    assert "under 25 seconds" in plan[1]["why"]
+
+
+def test_practice_plan_includes_unclassified_when_genuinely_top():
+    moves = [
+        _move("blunder", cp_loss=200, wp_drop=20.0, move_number=5,
+              tags=["unclassified"], primary="unclassified"),
+        _move("blunder", cp_loss=200, wp_drop=22.0, move_number=8,
+              tags=["unclassified"], primary="unclassified"),
+        _move("blunder", cp_loss=200, wp_drop=19.0, move_number=12,
+              tags=["unclassified"], primary="unclassified"),
+        _move("blunder", cp_loss=200, wp_drop=25.0, move_number=20,
+              tags=["abandoned_defender"], primary="abandoned_defender"),
+    ]
+    dna = _dna([_analysis("white", "loss", "B12", "Caro-Kann", moves)])
+    plan = dna["practice_plan"]
+    assert plan[0]["tag"] == "unclassified"
+    assert len(plan) == 2
+
+
+def test_practice_plan_empty_without_blunders():
+    moves = [_move("ok", cp_loss=5, move_number=3)]
+    dna = _dna([_analysis("white", "win", "B12", "Caro-Kann", moves)])
+    assert dna["practice_plan"] == []
+
+
+def test_practice_plan_positions_capped_and_ranked():
+    moves = [
+        _move("blunder", cp_loss=200, wp_drop=float(10 + i), move_number=5 + i,
+              tags=["missed_tactic"], primary="missed_tactic",
+              fen_before=f"fen-{i}")
+        for i in range(6)
+    ]
+    dna = _dna([_analysis("white", "loss", "B12", "Caro-Kann", moves)])
+    plan = dna["practice_plan"]
+    assert len(plan) == 1
+    # Highest win-prob drops first, capped at 4.
+    assert plan[0]["positions"] == ["fen-5", "fen-4", "fen-3", "fen-2"]

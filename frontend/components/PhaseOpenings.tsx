@@ -45,6 +45,7 @@ export default function PhaseOpenings({ result }: PhaseOpeningsProps) {
             {PHASES.map((phase) => {
               const count = result.phase_mistakes[phase.key];
               const share = (count / totalPhase) * 100;
+              const isWorst = count > 0 && count === maxPhase;
               return (
                 <div key={phase.key}>
                   <div className="flex items-baseline justify-between">
@@ -60,7 +61,9 @@ export default function PhaseOpenings({ result }: PhaseOpeningsProps) {
                   </div>
                   <div className="mt-1.5 h-2 overflow-hidden rounded-full bg-zinc-800">
                     <div
-                      className="h-full rounded-full bg-emerald-400 transition-all duration-700"
+                      className={`h-full rounded-full transition-all duration-700 ${
+                        isWorst ? "bg-rose-400" : "bg-zinc-500"
+                      }`}
                       style={{ width: `${(count / maxPhase) * 100}%` }}
                     />
                   </div>
@@ -116,9 +119,7 @@ export default function PhaseOpenings({ result }: PhaseOpeningsProps) {
                 {worstOpenings.map((op: OpeningStat, i) => (
                   <tr
                     key={`${op.eco}-${op.name}`}
-                    className={`border-b border-zinc-800/60 last:border-0 ${
-                      i === 0 ? "bg-rose-500/[0.06] text-zinc-100" : "text-zinc-300"
-                    }`}
+                    className="border-b border-zinc-800/60 text-zinc-300 last:border-0"
                   >
                     <td className="py-2.5 pr-3 font-mono text-xs text-zinc-400">
                       {op.eco}

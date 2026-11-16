@@ -7,14 +7,23 @@ import BlunderBoard from "@/components/BlunderBoard";
 import CoachPanel from "@/components/CoachPanel";
 import KpiCards from "@/components/KpiCards";
 import PhaseOpenings from "@/components/PhaseOpenings";
+import PracticeSection from "@/components/PracticeSection";
 import ProgressView from "@/components/ProgressView";
 import SearchForm, { type SearchValues } from "@/components/SearchForm";
 import { getJobStatus, startAnalysis } from "@/lib/api";
-import { formatTimestamp, platformDisplay, timeControlDisplay } from "@/lib/format";
+import {
+  formatPct,
+  formatTimestamp,
+  platformDisplay,
+  tagLabel,
+  timeControlDisplay,
+  topClassifiedSpot,
+} from "@/lib/format";
 import type {
   CoachSettings,
   JobProgress,
   PlayerDNA,
+  PracticeFocus,
 } from "@/lib/types";
 import { DEFAULT_COACH_SETTINGS } from "@/lib/types";
 
@@ -37,23 +46,29 @@ export default function Home() {
   const [result, setResult] = useState<PlayerDNA | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-  const [coachSettings, setCoachSettings] = useState<CoachSettings>(
-    DEFAULT_COACH_SETTINGS,
-  );
-  const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  // Load persisted coach settings (browser localStorage only).
-  useEffect(() => {
+  const [coachSettings, setCoachSettings] = useState<CoachSettings>(() => {
+    // Lazy initializer reads persisted settings once (client-only; the
+    // server render falls back to defaults and the drawer is closed, so
+    // nothing rendered differs).
+    if (typeof window === "undefined") return DEFAULT_COACH_SETTINGS;
     try {
       const raw = window.localStorage.getItem(COACH_SETTINGS_KEY);
       if (raw) {
         const parsed = JSON.parse(raw) as Partial<CoachSettings>;
-        setCoachSettings({ ...DEFAULT_COACH_SETTINGS, ...parsed });
+        return { ...DEFAULT_COACH_SETTINGS, ...parsed };
       }
     } catch {
       // ignore corrupt stored settings
     }
-  }, []);
+    return DEFAULT_COACH_SETTINGS;
+  });
+  const [practiceFocus, setPracticeFocus] = useState<PracticeFocus | null>(null);
+  const focusNonce = useRef(0);
+  const pollTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const topSpot = result
+    ? topClassifiedSpot(result.blind_spots, result.top_blind_spot)
+    : undefined;
 
   function handleCoachSettingsChange(next: CoachSettings) {
     setCoachSettings(next);
@@ -134,12 +149,21 @@ export default function Home() {
     setJobId(null);
     setResult(null);
     setError(null);
+    setPracticeFocus(null);
     setState("idle");
   }
 
   function handleRetry() {
     if (values) void handleSubmit(values);
     else setState("idle");
+  }
+
+  function handleTrainPosition(focus: Omit<PracticeFocus, "nonce">) {
+    focusNonce.current += 1;
+    setPracticeFocus({ ...focus, nonce: focusNonce.current });
+    document
+      .getElementById("game-replay")
+      ?.scrollIntoView({ behavior: "smooth", block: "start" });
   }
 
   return (
@@ -223,11 +247,42 @@ export default function Home() {
             </button>
           </header>
 
-          <div className="mt-6 space-y-3">
+          {/* Headline verdict: the #1 issue, in one plain-English line */}
+          {topSpot ? (
+            <div className="mt-6">
+              <p className="font-display text-xl leading-snug font-bold text-zinc-50 sm:text-2xl">
+                Your biggest leak is{" "}
+                <span className="text-rose-300">
+                  {tagLabel(topSpot.tag, topSpot.label)}
+                </span>{" "}
+                — {formatPct(topSpot.pct, 1)} of your flagged mistakes.
+              </p>
+              <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-zinc-400">
+                {topSpot.explanation}
+              </p>
+            </div>
+          ) : (
+            <p className="mt-6 font-display text-xl leading-snug font-bold text-zinc-50 sm:text-2xl">
+              No single habit dominates your mistakes — work through the
+              biggest buckets below.
+            </p>
+          )}
+
+          <div className="mt-6 space-y-4">
             <KpiCards result={result} />
             <BlindSpotBars blindSpots={result.blind_spots} />
+            <BlunderBoard
+              blunders={result.blunders}
+              practiceFocus={practiceFocus}
+            />
             <PhaseOpenings result={result} />
-            <BlunderBoard blunders={result.blunders} />
+            {result.practice_plan && result.practice_plan.length > 0 && (
+              <PracticeSection
+                plan={result.practice_plan}
+                blunders={result.blunders}
+                onTrainPosition={handleTrainPosition}
+              />
+            )}
             <CoachPanel
               jobId={jobId}
               username={result.username}

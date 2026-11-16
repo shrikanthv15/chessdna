@@ -1,5 +1,7 @@
 /** Display helpers: evals, percentages, clocks, blind-spot labels. */
 
+import type { BlindSpot, GameResult } from "./types";
+
 /** Fallback labels if the API ever omits `label` on a blind spot. */
 export const TAG_LABELS: Record<string, string> = {
   abandoned_defender: "Abandoned Defender",
@@ -10,9 +12,36 @@ export const TAG_LABELS: Record<string, string> = {
   conversion_collapse: "Conversion Collapse",
 };
 
+/** snake_case tag → Title Case, so new backend tags render sensibly without
+ *  a frontend change: "knight_fork_blindness" → "Knight Fork Blindness". */
+export function humanizeTag(tag: string): string {
+  return tag
+    .split("_")
+    .filter(Boolean)
+    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+    .join(" ");
+}
+
 export function tagLabel(tag: string, label?: string): string {
   if (label) return label;
-  return TAG_LABELS[tag] ?? tag.replace(/_/g, " ");
+  return TAG_LABELS[tag] ?? humanizeTag(tag);
+}
+
+/** The headline leak: the backend's top tag resolved against the breakdown.
+ *  Never "unclassified", never "none" — falls back to the largest classified
+ *  bucket when the tag can't be resolved, and undefined when no classified
+ *  pattern exists at all. */
+export function topClassifiedSpot(
+  spots: BlindSpot[] | undefined,
+  topTag: string | undefined,
+): BlindSpot | undefined {
+  const classified = (spots ?? []).filter((s) => s.tag !== "unclassified");
+  return (
+    (topTag && topTag !== "none"
+      ? classified.find((s) => s.tag === topTag)
+      : undefined) ??
+    [...classified].sort((a, b) => b.pct - a.pct)[0]
+  );
 }
 
 /**
@@ -58,6 +87,28 @@ export function formatTimestamp(iso: string): string {
     hour: "numeric",
     minute: "2-digit",
   });
+}
+
+/** Game date, short form: "Nov 14, 2026". Null-safe — returns null when the
+ *  backend sent no date (or an unparseable one). */
+export function formatGameDate(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toLocaleDateString(undefined, {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+export function resultLabel(result: GameResult): string {
+  return result === "win" ? "Win" : result === "loss" ? "Loss" : "Draw";
+}
+
+/** Single-letter result marker (W/L/D) from the user's perspective. */
+export function resultLetter(result: GameResult): string {
+  return result === "win" ? "W" : result === "loss" ? "L" : "D";
 }
 
 export function platformDisplay(platform: string): string {

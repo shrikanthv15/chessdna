@@ -11,6 +11,9 @@ Both sources are normalized into the same game dict::
         "eco": str,                 # e.g. "B12" ("" when unknown)
         "eco_name": str,            # e.g. "Caro-Kann Defense"
         "time_class": str,          # "rapid"|"blitz"|"bullet"
+        "date": str | None,         # ISO date "YYYY-MM-DD" from the PGN
+                                    # Date/UTCDate headers (None when absent
+                                    # or malformed — never fabricated)
         "clocks": [                 # one entry per ply that has clock data
             {"ply": int, "clock_seconds": float,
              "move_time_seconds": float | None},
@@ -24,6 +27,7 @@ reconstructed from consecutive clocks of the same color plus the increment.
 """
 from __future__ import annotations
 
+import datetime
 import io
 import json
 import re
@@ -53,6 +57,57 @@ TIME_CLASSES = ("rapid", "blitz", "bullet")
 
 _CLK_RE = re.compile(r"\[%clk\s+(\d+(?::\d+){1,2}(?:\.\d+)?)\]")
 _TC_RE = re.compile(r"^\s*(\d+)(?:\+(\d+))?")
+_DATE_RE = re.compile(r"^(\d{4})\.(\d{2})\.(\d{2})$")
+
+
+def _date_from_headers(headers: Any) -> str | None:
+    """ISO date from the PGN UTCDate/Date headers.
+
+    Prefers UTCDate (the actual UTC play date) over Date. Only fully
+    numeric ``YYYY.MM.DD`` values that form a real calendar date are
+    accepted; anything else (``????.??.??``, partial dates, junk) yields
+    None — a missing date is always better than a fabricated one.
+    """
+    for key in ("UTCDate", "Date"):
+        raw = (headers.get(key) or "").strip()
+        match = _DATE_RE.match(raw)
+        if not match:
+            continue
+        try:
+            return datetime.date(
+                int(match.group(1)), int(match.group(2)), int(match.group(3))
+            ).isoformat()
+        except ValueError:
+            continue
+    return None
+
+
+def date_from_pgn(pgn: str) -> str | None:
+    """ISO date from a PGN string's headers (header parse only, no replay).
+
+    Used to backfill ``date`` on game dicts that came from a fetch-cache
+    entry written before the ``date`` field existed. Any parse failure
+    yields None — never fabricated.
+    """
+    try:
+        headers = chess.pgn.read_headers(io.StringIO(pgn))
+    except Exception:
+        return None
+    if headers is None:
+        return None
+    return _date_from_headers(headers)
+
+
+def backfill_game_dates(games: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Fill a missing ``date`` on each game dict from its stored PGN.
+
+    Games that already carry a date are untouched. Mutates in place and
+    returns the same list for convenience.
+    """
+    for game in games:
+        if not game.get("date") and game.get("pgn"):
+            game["date"] = date_from_pgn(game["pgn"])
+    return games
 
 
 class FetchError(Exception):
@@ -229,6 +284,7 @@ def _normalize_chesscom_game(raw: dict[str, Any], username: str) -> dict[str, An
         "eco": eco,
         "eco_name": eco_name or "Unknown Opening",
         "time_class": raw.get("time_class") or "",
+        "date": _date_from_headers(game.headers),
         "clocks": extract_clocks_from_pgn(pgn_text),
     }
 
@@ -340,6 +396,7 @@ def _normalize_lichess_game(raw: dict[str, Any], username: str) -> dict[str, Any
         "eco": eco,
         "eco_name": eco_name or "Unknown Opening",
         "time_class": raw.get("speed") or raw.get("perf") or "",
+        "date": _date_from_headers(game.headers),
         "clocks": clocks,
     }
 

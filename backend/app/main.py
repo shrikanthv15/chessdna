@@ -26,11 +26,11 @@ from pydantic import BaseModel, Field
 
 from .analyzer.aggregator import build_player_dna
 from .analyzer.classifier import classify_record
-from .analyzer.engine import EngineAnalyzer
+from .analyzer.engine import EngineAnalyzer, ensure_game_context
 from .cache import FileCache, cache_key
 from .config import settings
 from .services.coach import generate_coaching
-from .services.fetcher import FetchError, fetch_games
+from .services.fetcher import FetchError, backfill_game_dates, fetch_games
 
 FETCH_CACHE_TTL_SECONDS = 3600.0
 
@@ -150,6 +150,10 @@ async def _run_job(job_id: str, request: AnalyzeRequest) -> None:
                 request.platform, request.username, request.time_control, request.game_count
             )
             cache.set(fetch_key, games)
+        # Fetch-cache entries written before the "date" field existed carry
+        # no date; recover it from the stored PGN headers so game identity
+        # is never silently missing.
+        backfill_game_dates(games)
 
         if _engine_lock.locked():
             _set_progress(
@@ -231,6 +235,10 @@ def _analyze_one(
             analysis = analyzer.analyze_game(game)
         _classify_analysis(analysis)
         cache.set(game_key, analysis)
+    else:
+        # Older cached analyses predate the v2 game-context fields; fill
+        # them in from the PGN + cached records (no engine calls).
+        ensure_game_context(analysis, game)
     return analysis
 
 

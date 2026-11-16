@@ -1,7 +1,7 @@
 "use client";
 
 import { AlertTriangle, Crosshair, Gamepad2, Trophy } from "lucide-react";
-import { formatPct, tagLabel } from "@/lib/format";
+import { formatPct, tagLabel, topClassifiedSpot } from "@/lib/format";
 import type { PlayerDNA } from "@/lib/types";
 
 interface KpiCardsProps {
@@ -9,7 +9,10 @@ interface KpiCardsProps {
 }
 
 export default function KpiCards({ result }: KpiCardsProps) {
-  const topSpot = result.blind_spots[0];
+  // Headline leak = the backend's top NON-unclassified tag (top_blind_spot),
+  // resolved against the breakdown for its share/count. "Unclassified" must
+  // never headline this card, even when it's the largest bucket.
+  const topSpot = topClassifiedSpot(result.blind_spots, result.top_blind_spot);
   const { wins, losses, draws } = {
     wins: result.record.white.wins + result.record.black.wins,
     losses: result.record.white.losses + result.record.black.losses,
@@ -68,10 +71,10 @@ export default function KpiCards({ result }: KpiCardsProps) {
         ) : (
           <>
             <p className="mt-3 font-display text-lg leading-snug font-bold text-zinc-50">
-              None detected
+              No clear pattern yet
             </p>
             <p className="mt-1 font-mono text-xs text-zinc-500">
-              No recurring blind-spot pattern found
+              Play more games to surface a recurring habit
             </p>
           </>
         )}

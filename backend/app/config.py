@@ -61,6 +61,15 @@ class Settings:
     LLM_MODEL: str = os.getenv("LLM_MODEL", "gpt-oss:120b")
     ENGINE_DEPTH: int = int(os.getenv("ENGINE_DEPTH", "12"))
     ANALYZE_WORKERS: int = max(1, int(os.getenv("ANALYZE_WORKERS", "2")))
+    CLOUD_EVAL_ENABLED: bool = (
+        os.getenv("CLOUD_EVAL_ENABLED", "true").strip().lower()
+        in ("1", "true", "yes", "on")
+    )
+    # Cloud eval is only consulted for early positions (half-moves played):
+    # the Lichess database is deep in openings and thin in unique
+    # middlegame/endgame positions, so gating keeps the HTTP cost bounded
+    # while capturing nearly all cache hits.
+    CLOUD_EVAL_MAX_PLY: int = int(os.getenv("CLOUD_EVAL_MAX_PLY", "24"))
     CORS_ORIGINS: list[str] = [
         origin.strip()
         for origin in os.getenv(
@@ -69,7 +78,10 @@ class Settings:
         if origin.strip()
     ]
     STOCKFISH_PATH: str | None = _resolve_stockfish()
-    CACHE_DIR: Path = REPO_ROOT / "data" / "cache"
+    # Overridable for tests / measurement runs; defaults to ./data/cache.
+    CACHE_DIR: Path = Path(
+        os.getenv("CHESSDNA_CACHE_DIR", str(REPO_ROOT / "data" / "cache"))
+    )
     USER_AGENT: str = "ChessDNA/1.0 (personal chess diagnostic; contact: none)"
 
 

@@ -10,11 +10,11 @@ interface BlindSpotBarsProps {
 
 const BAR_COLORS = [
   "bg-rose-400",
-  "bg-orange-400",
-  "bg-amber-400",
-  "bg-zinc-400",
+  "bg-zinc-500",
   "bg-zinc-500",
   "bg-zinc-600",
+  "bg-zinc-600",
+  "bg-zinc-700",
 ];
 
 export default function BlindSpotBars({ blindSpots }: BlindSpotBarsProps) {
