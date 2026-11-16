@@ -60,6 +60,13 @@ class Settings:
     LLM_API_KEY: str = os.getenv("LLM_API_KEY", "")
     LLM_MODEL: str = os.getenv("LLM_MODEL", "gpt-oss:120b")
     ENGINE_DEPTH: int = int(os.getenv("ENGINE_DEPTH", "12"))
+    CORS_ORIGINS: list[str] = [
+        origin.strip()
+        for origin in os.getenv(
+            "CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"
+        ).split(",")
+        if origin.strip()
+    ]
     STOCKFISH_PATH: str | None = _resolve_stockfish()
     CACHE_DIR: Path = REPO_ROOT / "data" / "cache"
     USER_AGENT: str = "ChessDNA/1.0 (personal chess diagnostic; contact: none)"
