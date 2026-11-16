@@ -60,6 +60,7 @@ class Settings:
     LLM_API_KEY: str = os.getenv("LLM_API_KEY", "")
     LLM_MODEL: str = os.getenv("LLM_MODEL", "gpt-oss:120b")
     ENGINE_DEPTH: int = int(os.getenv("ENGINE_DEPTH", "12"))
+    ANALYZE_WORKERS: int = max(1, int(os.getenv("ANALYZE_WORKERS", "2")))
     CORS_ORIGINS: list[str] = [
         origin.strip()
         for origin in os.getenv(

@@ -14,6 +14,7 @@ from __future__ import annotations
 import hashlib
 import json
 import os
+import threading
 import time
 from pathlib import Path
 from typing import Any
@@ -48,7 +49,9 @@ class FileCache:
     def set(self, key: str, value: Any) -> None:
         envelope = {"saved_at": time.time(), "value": value}
         path = self._path(key)
-        tmp_path = path.with_suffix(".tmp")
+        # Unique temp name per process+thread: parallel workers writing the
+        # same key must never share one temp file.
+        tmp_path = path.with_suffix(f".tmp{os.getpid()}-{threading.get_ident()}")
         with tmp_path.open("w", encoding="utf-8") as fh:
             json.dump(envelope, fh)
             fh.flush()

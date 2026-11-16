@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import subprocess
 import uuid
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any, Literal
 
 import chess
@@ -47,6 +48,11 @@ cache = FileCache(settings.CACHE_DIR)
 
 # In-memory job store: job_id -> job dict.
 jobs: dict[str, dict[str, Any]] = {}
+
+# One analysis at a time: a job already saturates every core with its
+# worker engines, so a second concurrent job would only slow both down.
+# Queued jobs wait here with an honest progress message.
+_engine_lock = asyncio.Lock()
 
 
 class AnalyzeRequest(BaseModel):
@@ -145,10 +151,16 @@ async def _run_job(job_id: str, request: AnalyzeRequest) -> None:
             )
             cache.set(fetch_key, games)
 
-        _set_progress(job, 0, len(games), f"Analyzing game 0/{len(games)}…")
-        analyses = await asyncio.to_thread(
-            _analyze_games, job, games, request.depth
-        )
+        if _engine_lock.locked():
+            _set_progress(
+                job, 0, len(games),
+                "Waiting for the engine — another analysis is running…",
+            )
+        async with _engine_lock:
+            _set_progress(job, 0, len(games), f"Analyzing game 0/{len(games)}…")
+            analyses = await asyncio.to_thread(
+                _analyze_games, job, games, request.depth
+            )
 
         _set_progress(job, len(games), len(games), "Building your Player DNA…")
         dna = build_player_dna(
@@ -172,28 +184,54 @@ async def _run_job(job_id: str, request: AnalyzeRequest) -> None:
 def _analyze_games(
     job: dict[str, Any], games: list[dict[str, Any]], depth: int
 ) -> list[dict[str, Any]]:
-    """Synchronous engine work: runs in a worker thread. One engine process
-    for the whole job; per-game results cached by sha1(pgn + depth)."""
+    """Synchronous engine work: runs in a worker thread. Games are analyzed
+    in parallel across ANALYZE_WORKERS threads, each with its own
+    single-threaded Stockfish process — one worker per core. Per-game
+    results cached by sha1(pgn + depth)."""
     stockfish_path = settings.STOCKFISH_PATH
     if not stockfish_path:
         raise RuntimeError(
             "Stockfish binary not found. Run backend/scripts/setup_stockfish.sh "
             "and set STOCKFISH_PATH in backend/.env."
         )
-    analyses: list[dict[str, Any]] = []
-    with EngineAnalyzer(stockfish_path, depth=depth) as analyzer:
+    workers = max(1, settings.ANALYZE_WORKERS)
+    results: list[dict[str, Any] | None] = [None] * len(games)
+    if workers == 1 or len(games) == 1:
         for index, game in enumerate(games):
             _set_progress(
                 job, index, len(games), f"Analyzing game {index + 1}/{len(games)}…"
             )
-            game_key = cache_key("analysis", game["pgn"], str(depth))
-            analysis = cache.get(game_key)
-            if analysis is None:
-                analysis = analyzer.analyze_game(game)
-                _classify_analysis(analysis)
-                cache.set(game_key, analysis)
-            analyses.append(analysis)
-    return analyses
+            results[index] = _analyze_one(game, depth, stockfish_path)
+        return [r for r in results if r is not None]
+    done = 0
+    with ThreadPoolExecutor(max_workers=workers) as pool:
+        futures = {
+            pool.submit(_analyze_one, game, depth, stockfish_path): index
+            for index, game in enumerate(games)
+        }
+        for future in as_completed(futures):
+            results[futures[future]] = future.result()
+            done += 1
+            _set_progress(
+                job, done, len(games), f"Analyzing game {done}/{len(games)}…"
+            )
+    return [r for r in results if r is not None]
+
+
+def _analyze_one(
+    game: dict[str, Any], depth: int, stockfish_path: str
+) -> dict[str, Any]:
+    """Analyze a single game (cache-first). Opens its own engine process so
+    worker threads never share Stockfish state; engine startup (~0.1s) is
+    negligible next to a game's analysis time."""
+    game_key = cache_key("analysis", game["pgn"], str(depth))
+    analysis = cache.get(game_key)
+    if analysis is None:
+        with EngineAnalyzer(stockfish_path, depth=depth) as analyzer:
+            analysis = analyzer.analyze_game(game)
+        _classify_analysis(analysis)
+        cache.set(game_key, analysis)
+    return analysis
 
 
 def _classify_analysis(analysis: dict[str, Any]) -> None:
