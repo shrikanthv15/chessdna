@@ -1005,12 +1005,17 @@ export default function BlunderBoard({
               {ex}
             </p>
           ))
-        ) : (
+        ) : fb.source === "browser" ? (
           <p className="mt-2 text-sm leading-relaxed text-stone-500 dark:text-zinc-500">
             No classifier explanation for this one — the verdict above is
             eval-only (the backend engine endpoint didn&apos;t answer, so
             your browser&apos;s Stockfish evaluated it). The PV line is what
             Stockfish would play from here.
+          </p>
+        ) : (
+          <p className="mt-2 text-sm leading-relaxed text-stone-500 dark:text-zinc-500">
+            No classifier explanation was returned for this one — the eval
+            and PV line above are what Stockfish says about the position.
           </p>
         )}
         {fb.tags.length > 1 && (

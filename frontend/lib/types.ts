@@ -74,7 +74,9 @@ export interface PlayedMoveFeedback {
   win_prob_drop: number;
   tags: string[];
   primary: string | null;
-  explanations: string[];
+  /** Classifier explanations keyed by tag (backend shape), or a plain
+   *  list. `lib/engine.ts` normalizes both to an array, primary first. */
+  explanations: string[] | Record<string, string>;
 }
 
 export interface PositionResponse {

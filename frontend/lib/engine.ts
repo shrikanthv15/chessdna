@@ -118,6 +118,32 @@ export async function evaluatePosition(
   return fromBackend(res, "backend");
 }
 
+/** Normalize classifier explanations to an array, primary tag first.
+ *  The backend returns a dict keyed by tag; older/stub shapes may return
+ *  a list. Anything else yields []. */
+function normalizeExplanations(
+  explanations: string[] | Record<string, string> | undefined,
+  tags: string[],
+  primary: string | null,
+): string[] {
+  if (!explanations) return [];
+  if (Array.isArray(explanations)) return explanations;
+  const ordered = [
+    ...(primary ? [primary] : []),
+    ...tags.filter((t) => t !== primary),
+    ...Object.keys(explanations),
+  ];
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const tag of ordered) {
+    if (seen.has(tag)) continue;
+    seen.add(tag);
+    const text = explanations[tag];
+    if (typeof text === "string" && text.length > 0) out.push(text);
+  }
+  return out;
+}
+
 /** Feedback for a move the user played from `fen`: backend first (it alone
  *  has the classifier WHY); browser-engine fallback computes the eval
  *  delta from two position evals. */
@@ -141,7 +167,11 @@ export async function evaluatePlayedMove(
         winProbDrop: played.win_prob_drop,
         tags: played.tags ?? [],
         primary: played.primary ?? null,
-        explanations: played.explanations ?? [],
+        explanations: normalizeExplanations(
+          played.explanations,
+          played.tags ?? [],
+          played.primary ?? null,
+        ),
       };
     }
     // Backend answered without `played` (older shape) — treat the
