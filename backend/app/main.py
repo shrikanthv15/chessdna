@@ -34,6 +34,10 @@ from .services.fetcher import FetchError, backfill_game_dates, fetch_games
 
 FETCH_CACHE_TTL_SECONDS = 3600.0
 
+# Bump when the classifier or engine output format changes, so cached
+# per-game analyses are re-computed instead of serving stale tags.
+ANALYSIS_CACHE_VERSION = "2"
+
 app = FastAPI(title="ChessDNA", version="1.0.0")
 
 app.add_middleware(
@@ -227,8 +231,10 @@ def _analyze_one(
 ) -> dict[str, Any]:
     """Analyze a single game (cache-first). Opens its own engine process so
     worker threads never share Stockfish state; engine startup (~0.1s) is
-    negligible next to a game's analysis time."""
-    game_key = cache_key("analysis", game["pgn"], str(depth))
+    negligible next to a game's analysis time. The cache key carries the
+    analyzer version: classifier/engine changes must re-analyze rather
+    than serve stale tags."""
+    game_key = cache_key("analysis", ANALYSIS_CACHE_VERSION, game["pgn"], str(depth))
     analysis = cache.get(game_key)
     if analysis is None:
         with EngineAnalyzer(stockfish_path, depth=depth) as analyzer:
